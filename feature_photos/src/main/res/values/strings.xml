@@ -6,4 +6,9 @@
   <string name="retry_button">Retry</string>
   <string name="error_occurred">An error occurred</string>
   <string name="no_photos_found">No photos found</string>
+  <string name="photo_details_photographer">Photographer</string>
+  <string name="photo_details_description">Description</string>
+  <string name="photo_details_dimensions">Dimensions</string>
+  <string name="photo_details_view_on_the_web">View on the web</string>
+  <string name="photo_thumbnail_alt">Photo thumbnail</string>
 </resources>

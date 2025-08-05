@@ -22,21 +22,17 @@ class MainViewModel @Inject constructor(
   val uiState = _uiState.asStateFlow()
 
   init {
-    checkApiKey()
+    initializeApp()
   }
 
-  private fun checkApiKey() {
+  private fun initializeApp() {
     viewModelScope.launch {
-      // First, ensure the initial key is seeded if it hasn't been already
       seedInitialApiKeyUseCase()
-
-      // Then, check if a valid key exists to determine the start destination
-      val startDestination = if (hasApiKeyUseCase()) {
-        PhotoListDestination
-      } else {
-        ApiKeyDestination
-      }
-      _uiState.value = MainUiState.Ready(startDestination)
+      _uiState.value = MainUiState.Ready(resolveStartDestination())
     }
+  }
+
+  private suspend fun resolveStartDestination(): Any {
+    return if (hasApiKeyUseCase()) PhotoListDestination else ApiKeyDestination
   }
 }

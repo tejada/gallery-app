@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,24 +36,24 @@ class MainActivity : ComponentActivity() {
           modifier = Modifier.fillMaxSize(),
           color = MaterialTheme.colorScheme.background
         ) {
-          when (uiState) {
-            is MainUiState.Loading -> {
-              // Show a loading indicator, like a splash screen
-              Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-              ) {
-                CircularProgressIndicator()
-              }
-            }
-
-            is MainUiState.Ready -> {
-              val startDestination = (uiState as MainUiState.Ready).startDestination
-              AppNavigation(startDestination = startDestination)
-            }
-          }
+          RenderUiState(uiState)
         }
       }
+    }
+  }
+
+
+  @Composable
+  private fun RenderUiState(uiState: MainUiState) {
+    when (uiState) {
+      is MainUiState.Loading -> Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        CircularProgressIndicator()
+      }
+
+      is MainUiState.Ready -> AppNavigation(startDestination = uiState.startDestination)
     }
   }
 }

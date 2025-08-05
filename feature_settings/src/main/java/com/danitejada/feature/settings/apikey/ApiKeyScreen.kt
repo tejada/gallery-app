@@ -13,7 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,26 +55,29 @@ fun ApiKeyScreen(
   val scrollState = rememberScrollState()
   val focusManager = LocalFocusManager.current
   val keyboardController = LocalSoftwareKeyboardController.current
+
+  val isInputValid = apiKeyInput.isNotBlank()
+  val isReadyToSubmit = uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error
   val canNavigateBack = navController.previousBackStackEntry != null
 
+  // React to a successful save
   LaunchedEffect(uiState) {
-    if (uiState is ApiKeyUiState.Success && (uiState as ApiKeyUiState.Success).apiKey.isNotBlank()) {
-      onApiKeySaved()
-      viewModel.resetUiState()
+    (uiState as? ApiKeyUiState.Success)?.let {
+      if (it.apiKey.isNotBlank()) {
+        onApiKeySaved()
+        viewModel.resetUiState()
+      }
     }
   }
 
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text(stringResource(id = R.string.settings_title)) },
+        title = { Text(stringResource(R.string.settings_title)) },
         navigationIcon = {
           if (canNavigateBack) {
             IconButton(onClick = onBackClick) {
-              Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back"
-              )
+              Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
           }
         }
@@ -109,18 +111,13 @@ fun ApiKeyScreen(
         ),
         keyboardActions = KeyboardActions(
           onDone = {
-            if (apiKeyInput.isNotBlank() &&
-              (uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error)
-            ) {
+            if (isInputValid && isReadyToSubmit) {
               viewModel.saveApiKey(apiKeyInput)
               focusManager.clearFocus()
               keyboardController?.hide()
             }
           }
         ),
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(bottom = 16.dp),
         isError = uiState is ApiKeyUiState.Error,
         supportingText = {
           if (uiState is ApiKeyUiState.Error) {
@@ -129,7 +126,10 @@ fun ApiKeyScreen(
               color = MaterialTheme.colorScheme.error
             )
           }
-        }
+        },
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(bottom = 16.dp)
       )
 
       Button(
@@ -138,8 +138,7 @@ fun ApiKeyScreen(
           keyboardController?.hide()
           viewModel.saveApiKey(apiKeyInput)
         },
-        enabled = apiKeyInput.isNotBlank() &&
-            (uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error),
+        enabled = isInputValid && isReadyToSubmit,
         modifier = Modifier.fillMaxWidth()
       ) {
         if (uiState is ApiKeyUiState.Loading) {

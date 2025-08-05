@@ -19,23 +19,20 @@ class ApiKeyViewModel @Inject constructor(
 ) : ViewModel() {
 
   private var saveJob: Job? = null
+
   private val _uiState = MutableStateFlow<ApiKeyUiState>(ApiKeyUiState.Idle)
   val uiState: StateFlow<ApiKeyUiState> = _uiState.asStateFlow()
 
-  /**
-   * Saves the provided API key and updates the UI state.
-   * @param apiKey The API key to save.
-   */
   fun saveApiKey(apiKey: String) {
-    if (apiKey.isBlank()) {
-      _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_empty)
-      return
-    }
-
-    // Basic API key format validation (Pexels API keys are typically 563492ad6f91700001000001...)
-    if (!isValidApiKeyFormat(apiKey)) {
-      _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_invalid)
-      return
+    when {
+      apiKey.isBlank() -> {
+        _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_empty)
+        return
+      }
+      !isValidApiKeyFormat(apiKey) -> {
+        _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_invalid)
+        return
+      }
     }
 
     saveJob?.cancel()
@@ -44,38 +41,30 @@ class ApiKeyViewModel @Inject constructor(
       try {
         useCase(apiKey)
         _uiState.value = ApiKeyUiState.Success(apiKey)
-      } catch (_: SecurityException) {
-        _uiState.value = ApiKeyUiState.Error(R.string.error_security_generic)
-      } catch (_: IllegalArgumentException) {
-        _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_invalid)
-      } catch (_: IOException) {
-        _uiState.value = ApiKeyUiState.Error(R.string.error_network)
       } catch (e: Exception) {
-        val messageResId = when {
-          e.message?.contains("encryption", ignoreCase = true) == true ->
-            R.string.error_encryption_failed
-
-          e.message?.contains("keystore", ignoreCase = true) == true ->
-            R.string.error_keystore_not_ready
-
-          else -> R.string.error_save_api_key_failed_generic
-        }
-        _uiState.value = ApiKeyUiState.Error(messageResId)
+        _uiState.value = ApiKeyUiState.Error(mapErrorToMessage(e))
       }
     }
   }
 
-  /**
-   * Basic validation for Pexels API key format
-   */
   private fun isValidApiKeyFormat(apiKey: String): Boolean {
-    // Pexels API keys are typically 39-60 characters long, alphanumeric
+    // Pexels API keys are typically 30-80 alphanumeric characters
     return apiKey.length in 30..80 && apiKey.matches(Regex("^[a-zA-Z0-9]+$"))
   }
 
-  /**
-   * Resets the UI state to Idle.
-   */
+  private fun mapErrorToMessage(e: Exception): Int = when (e) {
+    is SecurityException -> R.string.error_security_generic
+    is IllegalArgumentException -> R.string.error_api_key_invalid
+    is IOException -> R.string.error_network
+    else -> when {
+      e.message?.contains("encryption", ignoreCase = true) == true ->
+        R.string.error_encryption_failed
+      e.message?.contains("keystore", ignoreCase = true) == true ->
+        R.string.error_keystore_not_ready
+      else -> R.string.error_save_api_key_failed_generic
+    }
+  }
+
   fun resetUiState() {
     _uiState.value = ApiKeyUiState.Idle
   }

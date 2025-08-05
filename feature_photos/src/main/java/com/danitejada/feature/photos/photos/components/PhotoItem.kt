@@ -11,9 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.ui.image.AsyncImageWithPlaceholder
+import com.danitejada.feature.photos.R
 
 @Composable
 fun PhotoItem(
@@ -30,8 +32,8 @@ fun PhotoItem(
   ) {
     AsyncImageWithPlaceholder(
       imageUrl = photo.tinyThumbnailUrl,
-      placeholder = ColorPainter(color = placeholderColor),
-      contentDescription = photo.alt,
+      placeholder = ColorPainter(placeholderColor),
+      contentDescription = photo.alt ?: stringResource(R.string.photo_thumbnail_alt),
       modifier = Modifier
         .fillMaxSize()
         .clip(RoundedCornerShape(8.dp))

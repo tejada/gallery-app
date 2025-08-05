@@ -51,6 +51,7 @@ dependencies {
 
   // Hilt
   implementation(libs.hilt.android)
+  implementation(libs.androidx.ui.test.junit4.android)
   ksp(libs.hilt.compiler)
   implementation(libs.androidx.hilt.navigation.compose)
 
