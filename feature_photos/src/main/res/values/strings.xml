@@ -1,0 +1,5 @@
+<resources>
+  <string name="app_name">feature_photos</string>
+  <string name="photo_list_title">Photos</string>
+  <string name="photo_details_title">Photo Details</string>
+</resources>

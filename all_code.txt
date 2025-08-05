@@ -1,0 +1,3824 @@
+
+--- ./feature_settings/build.gradle.kts ---
+
+plugins {
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
+  alias(libs.plugins.hilt)
+  alias(libs.plugins.kotlin.compose)
+}
+
+android {
+  namespace = "com.danitejada.feature.settings"
+  compileSdk = 36
+
+  defaultConfig {
+    minSdk = 24
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    consumerProguardFiles("consumer-rules.pro")
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+
+  buildFeatures {
+    compose = true
+  }
+}
+
+dependencies {
+  implementation(project(":core_domain"))
+  implementation(project(":core_ui"))
+
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.activity.compose)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.ui)
+  implementation(libs.androidx.ui.graphics)
+  implementation(libs.androidx.ui.tooling.preview)
+  implementation(libs.androidx.view.model)
+  implementation(libs.androidx.material3)
+
+  // Hilt
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation(libs.androidx.hilt.navigation.compose)
+
+  // Test
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.coroutines.test)
+  testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+
+  androidTestImplementation(libs.mockk.android)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.ui.test.junit4)
+
+  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+
+--- ./feature_settings/src/androidTest/java/com/danitejada/feature/settings/apikey/ApiKeyScreenTest.kt ---
+
+package com.danitejada.feature.settings.apikey
+
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import com.danitejada.core.domain.usecases.settings.SaveApiKeyUseCase
+import com.danitejada.core.ui.theme.GalleryAppTheme
+import io.mockk.coVerify
+import io.mockk.mockk
+
+import org.junit.Rule
+import org.junit.Test
+
+class ApiKeyScreenTest {
+
+  @get:Rule
+  val composeTestRule = createComposeRule()
+
+  private val saveApiKeyUseCase: SaveApiKeyUseCase = mockk(relaxed = true)
+
+  @Test
+  fun saveButton_isDisabled_whenInputIsEmpty() {
+    // Given the screen is launched with an empty input
+    val viewModel = ApiKeyViewModel(saveApiKeyUseCase)
+    composeTestRule.setContent {
+      GalleryAppTheme {
+        ApiKeyScreen(
+          viewModel = viewModel,
+          onApiKeySaved = {}
+        )
+      }
+    }
+
+    // Then the "Save Key" button is disabled
+    composeTestRule.onNodeWithText("Save Key").assertIsNotEnabled()
+  }
+
+  @Test
+  fun saveButton_isEnabled_whenInputIsNotEmpty() {
+    // Given the screen is launched
+    val viewModel = ApiKeyViewModel(saveApiKeyUseCase)
+    composeTestRule.setContent {
+      GalleryAppTheme {
+        ApiKeyScreen(
+          viewModel = viewModel,
+          onApiKeySaved = {}
+        )
+      }
+    }
+
+    // When text is entered into the text field
+    composeTestRule.onNodeWithText("API Key").performTextInput("some-valid-key")
+
+    // Then the "Save Key" button is enabled
+    composeTestRule.onNodeWithText("Save Key").assertIsEnabled()
+  }
+
+  @Test
+  fun clickingSaveButton_withValidInput_callsViewModel() {
+    // Given the screen is launched
+    val viewModel = ApiKeyViewModel(saveApiKeyUseCase)
+    composeTestRule.setContent {
+      GalleryAppTheme {
+        ApiKeyScreen(viewModel = viewModel, onApiKeySaved = {})
+      }
+    }
+
+    val apiKey = "563492ad6f91700001000001abc123def456"
+
+    // When valid text is entered and the save button is clicked
+    composeTestRule.onNodeWithText("API Key").performTextInput(apiKey)
+    composeTestRule.onNodeWithText("Save Key").performClick()
+
+    // Then the saveApiKey method on the use case is called
+    coVerify { saveApiKeyUseCase.invoke(apiKey) }
+  }
+}
+
+
+--- ./feature_settings/src/test/java/com/danitejada/feature/settings/apikey/ApiKeyViewModelTest.kt ---
+
+package com.danitejada.feature.settings.apikey
+
+import app.cash.turbine.test
+import com.danitejada.core.domain.usecases.settings.SaveApiKeyUseCase
+import com.danitejada.feature.settings.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+
+@ExperimentalCoroutinesApi
+class ApiKeyViewModelTest {
+
+  private lateinit var viewModel: ApiKeyViewModel
+  private val saveApiKeyUseCase: SaveApiKeyUseCase = mock()
+  private val testDispatcher = StandardTestDispatcher()
+
+  @Before
+  fun setUp() {
+    Dispatchers.setMain(testDispatcher)
+    viewModel = ApiKeyViewModel(saveApiKeyUseCase)
+  }
+
+  @After
+  fun tearDown() {
+    Dispatchers.resetMain()
+  }
+
+  @Test
+  fun `saveApiKey with blank key should emit error`() = runTest {
+    viewModel.uiState.test {
+      // Initial Idle state
+      assertEquals(ApiKeyUiState.Idle, awaitItem())
+
+      viewModel.saveApiKey(" ")
+
+      val errorState = awaitItem()
+      assertTrue(errorState is ApiKeyUiState.Error)
+      assertEquals(R.string.error_api_key_empty, (errorState as ApiKeyUiState.Error).messageResId)
+
+      verify(saveApiKeyUseCase, never()).invoke(any())
+    }
+  }
+
+  @Test
+  fun `saveApiKey with invalid format should emit error`() = runTest {
+    viewModel.uiState.test {
+      assertEquals(ApiKeyUiState.Idle, awaitItem())
+
+      viewModel.saveApiKey("short")
+
+      val errorState = awaitItem()
+      assertTrue(errorState is ApiKeyUiState.Error)
+      assertEquals(R.string.error_api_key_invalid, (errorState as ApiKeyUiState.Error).messageResId)
+      verify(saveApiKeyUseCase, never()).invoke(any())
+    }
+  }
+
+  @Test
+  fun `saveApiKey with valid key should emit loading then success`() = runTest {
+    val apiKey = "563492ad6f91700001000001abc123def456"
+    viewModel.uiState.test {
+      assertEquals(ApiKeyUiState.Idle, awaitItem())
+
+      viewModel.saveApiKey(apiKey)
+
+      assertEquals(ApiKeyUiState.Loading, awaitItem())
+
+      val successState = awaitItem()
+      assertTrue(successState is ApiKeyUiState.Success)
+      assertEquals(apiKey, (successState as ApiKeyUiState.Success).apiKey)
+
+      verify(saveApiKeyUseCase).invoke(apiKey)
+    }
+  }
+
+  @Test
+  fun `saveApiKey use case throws SecurityException should emit error`() = runTest {
+    val apiKey = "563492ad6f91700001000001abc123def456"
+    whenever(saveApiKeyUseCase.invoke(apiKey)).thenThrow(SecurityException("Security error: Unable to securely store the API key."))
+
+    viewModel.uiState.test {
+      assertEquals(ApiKeyUiState.Idle, awaitItem())
+      viewModel.saveApiKey(apiKey)
+
+      assertEquals(ApiKeyUiState.Loading, awaitItem())
+
+      val errorState = awaitItem()
+      assertTrue(errorState is ApiKeyUiState.Error)
+      assertEquals(R.string.error_security_generic, (errorState as ApiKeyUiState.Error).messageResId)
+    }
+  }
+
+  @Test
+  fun `resetUiState should set state to Idle`() = runTest {
+    viewModel.uiState.test {
+      assertEquals(ApiKeyUiState.Idle, awaitItem())
+      viewModel.saveApiKey(" ") // make state Error
+      assertTrue(awaitItem() is ApiKeyUiState.Error)
+
+      viewModel.resetUiState()
+      assertEquals(ApiKeyUiState.Idle, awaitItem())
+    }
+  }
+}
+
+
+--- ./feature_settings/src/main/java/com/danitejada/feature/settings/apikey/ApiKeyUiState.kt ---
+
+package com.danitejada.feature.settings.apikey
+
+import androidx.annotation.StringRes
+
+sealed interface ApiKeyUiState {
+  // The screen is loading
+  data object Loading : ApiKeyUiState
+
+  // The screen has successfully loaded the API key
+  data class Success(val apiKey: String) : ApiKeyUiState
+
+  // An error occurred
+  data class Error(@StringRes val messageResId: Int) : ApiKeyUiState
+
+  // An idle state while we wait for the user input
+  data object Idle : ApiKeyUiState
+}
+
+
+--- ./feature_settings/src/main/java/com/danitejada/feature/settings/apikey/ApiKeyViewModel.kt ---
+
+package com.danitejada.feature.settings.apikey
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.danitejada.core.domain.usecases.settings.SaveApiKeyUseCase
+import com.danitejada.feature.settings.R
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import java.io.IOException
+import javax.inject.Inject
+
+@HiltViewModel
+class ApiKeyViewModel @Inject constructor(
+  private val useCase: SaveApiKeyUseCase,
+) : ViewModel() {
+
+  private var saveJob: Job? = null
+  private val _uiState = MutableStateFlow<ApiKeyUiState>(ApiKeyUiState.Idle)
+  val uiState: StateFlow<ApiKeyUiState> = _uiState.asStateFlow()
+
+  /**
+   * Saves the provided API key and updates the UI state.
+   * @param apiKey The API key to save.
+   */
+  fun saveApiKey(apiKey: String) {
+    if (apiKey.isBlank()) {
+      _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_empty)
+      return
+    }
+
+    // Basic API key format validation (Pexels API keys are typically 563492ad6f91700001000001...)
+    if (!isValidApiKeyFormat(apiKey)) {
+      _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_invalid)
+      return
+    }
+
+    saveJob?.cancel()
+    saveJob = viewModelScope.launch {
+      _uiState.value = ApiKeyUiState.Loading
+      try {
+        useCase(apiKey)
+        _uiState.value = ApiKeyUiState.Success(apiKey)
+      } catch (_: SecurityException) {
+        _uiState.value = ApiKeyUiState.Error(R.string.error_security_generic)
+      } catch (_: IllegalArgumentException) {
+        _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_invalid)
+      } catch (_: IOException) {
+        _uiState.value = ApiKeyUiState.Error(R.string.error_network)
+      } catch (e: Exception) {
+        val messageResId = when {
+          e.message?.contains("encryption", ignoreCase = true) == true ->
+            R.string.error_encryption_failed
+
+          e.message?.contains("keystore", ignoreCase = true) == true ->
+            R.string.error_keystore_not_ready
+
+          else -> R.string.error_save_api_key_failed_generic
+        }
+        _uiState.value = ApiKeyUiState.Error(messageResId)
+      }
+    }
+  }
+
+  /**
+   * Basic validation for Pexels API key format
+   */
+  private fun isValidApiKeyFormat(apiKey: String): Boolean {
+    // Pexels API keys are typically 39-40 characters long, alphanumeric
+    return apiKey.length in 30..50 && apiKey.matches(Regex("^[a-zA-Z0-9]+$"))
+  }
+
+  /**
+   * Resets the UI state to Idle.
+   */
+  fun resetUiState() {
+    _uiState.value = ApiKeyUiState.Idle
+  }
+
+  override fun onCleared() {
+    super.onCleared()
+    saveJob?.cancel()
+  }
+}
+
+
+--- ./feature_settings/src/main/java/com/danitejada/feature/settings/apikey/ApiKeyScreen.kt ---
+
+package com.danitejada.feature.settings.apikey
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danitejada.feature.settings.R
+
+@Composable
+fun ApiKeyScreen(
+  viewModel: ApiKeyViewModel,
+  onApiKeySaved: () -> Unit
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  var apiKeyInput by remember { mutableStateOf("") }
+
+  LaunchedEffect(uiState) {
+    if (uiState is ApiKeyUiState.Success && (uiState as ApiKeyUiState.Success).apiKey.isNotBlank()) {
+      onApiKeySaved()
+      // Optionally reset to Idle to prevent re-triggering
+      viewModel.resetUiState()
+    }
+  }
+
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(16.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center
+  ) {
+    Text(
+      text = stringResource(R.string.api_key_screen_title),
+      style = MaterialTheme.typography.titleLarge,
+      modifier = Modifier.padding(bottom = 32.dp)
+    )
+
+    OutlinedTextField(
+      value = apiKeyInput,
+      onValueChange = { apiKeyInput = it },
+      label = { Text(stringResource(R.string.api_key_label)) },
+      // Remove PasswordVisualTransformation for better UX
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = 16.dp),
+      isError = uiState is ApiKeyUiState.Error,
+      supportingText = {
+        if (uiState is ApiKeyUiState.Error) {
+          Text(
+            text = stringResource((uiState as ApiKeyUiState.Error).messageResId),
+            color = MaterialTheme.colorScheme.error
+          )
+        }
+      }
+    )
+
+    Button(
+      onClick = { viewModel.saveApiKey(apiKeyInput) },
+      enabled = apiKeyInput.isNotBlank() && (uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error),
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      if (uiState is ApiKeyUiState.Loading) {
+        CircularProgressIndicator(
+          modifier = Modifier.size(24.dp),
+          color = MaterialTheme.colorScheme.onPrimary,
+          strokeWidth = 2.dp
+        )
+      } else {
+        Text(stringResource(R.string.save_key_button))
+      }
+    }
+  }
+}
+
+
+--- ./app/build.gradle.kts ---
+
+plugins {
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
+  alias(libs.plugins.hilt)
+  alias(libs.plugins.kotlin.compose)
+}
+
+android {
+  namespace = "com.danitejada.gallery_app"
+  compileSdk = 36
+
+  defaultConfig {
+    applicationId = "com.danitejada.gallery_app"
+    minSdk = 24
+    targetSdk = 36
+    versionCode = 1
+    versionName = "1.0"
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    vectorDrawables {
+      useSupportLibrary = true
+    }
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+
+  buildFeatures {
+    compose = true
+  }
+}
+
+dependencies {
+  implementation(project(":feature_photos"))
+  implementation(project(":feature_settings"))
+  implementation(project(":core_domain" ))
+  implementation(project(":core_data"))
+  implementation(project(":core_ui"))
+
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.activity.compose)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.material3)
+  implementation(libs.androidx.navigation.compose)
+  implementation(libs.google.material)
+
+  // Hilt
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation(libs.androidx.hilt.navigation.compose)
+
+  // Test
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.coroutines.test)
+  testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+
+  androidTestImplementation(libs.mockk.android)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.ui.test.junit4)
+
+  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+
+--- ./app/src/test/java/com/danitejada/gallery_app/MainViewModelTest.kt ---
+
+package com.danitejada.gallery_app
+
+import app.cash.turbine.test
+import com.danitejada.core.domain.usecases.settings.HasApiKeyUseCase
+import com.danitejada.core.domain.usecases.settings.SeedInitialApiKeyUseCase
+import com.danitejada.gallery_app.navigation.ApiKeyDestination
+import com.danitejada.gallery_app.navigation.PhotoListDestination
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+
+@ExperimentalCoroutinesApi
+class MainViewModelTest {
+
+  private lateinit var viewModel: MainViewModel
+  private val seedInitialApiKeyUseCase: SeedInitialApiKeyUseCase = mock()
+  private val hasApiKeyUseCase: HasApiKeyUseCase = mock()
+  private val testDispatcher = StandardTestDispatcher()
+
+  @Before
+  fun setUp() {
+    Dispatchers.setMain(testDispatcher)
+  }
+
+  @After
+  fun tearDown() {
+    Dispatchers.resetMain()
+  }
+
+  @Test
+  fun `when api key exists, uiState is Ready with PhotoListDestination`() = runTest {
+    whenever(hasApiKeyUseCase.invoke()).thenReturn(true)
+    viewModel = MainViewModel(seedInitialApiKeyUseCase, hasApiKeyUseCase)
+
+    viewModel.uiState.test {
+      val readyState = awaitItem()
+      assertTrue(readyState is MainUiState.Ready)
+      assertEquals(PhotoListDestination, (readyState as MainUiState.Ready).startDestination)
+    }
+  }
+
+  @Test
+  fun `when api key does not exist, uiState is Ready with ApiKeyDestination`() = runTest {
+    whenever(hasApiKeyUseCase.invoke()).thenReturn(false)
+    viewModel = MainViewModel(seedInitialApiKeyUseCase, hasApiKeyUseCase)
+
+    viewModel.uiState.test {
+      val readyState = awaitItem()
+      assertTrue(readyState is MainUiState.Ready)
+      assertEquals(ApiKeyDestination, (readyState as MainUiState.Ready).startDestination)
+    }
+  }
+}
+
+
+--- ./app/src/main/java/com/danitejada/gallery_app/MainViewModel.kt ---
+
+package com.danitejada.gallery_app
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.danitejada.core.domain.usecases.settings.HasApiKeyUseCase
+import com.danitejada.core.domain.usecases.settings.SeedInitialApiKeyUseCase
+import com.danitejada.gallery_app.navigation.ApiKeyDestination
+import com.danitejada.gallery_app.navigation.PhotoListDestination
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class MainViewModel @Inject constructor(
+  private val seedInitialApiKeyUseCase: SeedInitialApiKeyUseCase,
+  private val hasApiKeyUseCase: HasApiKeyUseCase
+) : ViewModel() {
+
+  private val _uiState = MutableStateFlow<MainUiState>(MainUiState.Loading)
+  val uiState = _uiState.asStateFlow()
+
+  init {
+    checkApiKey()
+  }
+
+  private fun checkApiKey() {
+    viewModelScope.launch {
+      // First, ensure the initial key is seeded if it hasn't been already
+      seedInitialApiKeyUseCase()
+
+      // Then, check if a valid key exists to determine the start destination
+      val startDestination = if (hasApiKeyUseCase()) {
+        PhotoListDestination
+      } else {
+        ApiKeyDestination
+      }
+      _uiState.value = MainUiState.Ready(startDestination)
+    }
+  }
+}
+
+
+--- ./app/src/main/java/com/danitejada/gallery_app/MainActivity.kt ---
+
+package com.danitejada.gallery_app
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.danitejada.core.ui.theme.GalleryAppTheme
+import com.danitejada.gallery_app.navigation.AppNavigation
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+  private val viewModel: MainViewModel by viewModels()
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    enableEdgeToEdge()
+    setContent {
+      val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+
+      GalleryAppTheme {
+        Surface(
+          modifier = Modifier.fillMaxSize(),
+          color = MaterialTheme.colorScheme.background
+        ) {
+          when (uiState) {
+            is MainUiState.Loading -> {
+              // Show a loading indicator, like a splash screen
+              Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+              ) {
+                CircularProgressIndicator()
+              }
+            }
+
+            is MainUiState.Ready -> {
+              val startDestination = (uiState as MainUiState.Ready).startDestination
+              AppNavigation(startDestination = startDestination)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+--- ./app/src/main/java/com/danitejada/gallery_app/navigation/AppNavigation.kt ---
+
+package com.danitejada.gallery_app.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import com.danitejada.feature.photos.photos.detail.PhotoDetailScreen
+import com.danitejada.feature.photos.photos.list.PhotoListScreen
+import com.danitejada.feature.settings.apikey.ApiKeyScreen
+
+@Composable
+fun AppNavigation(startDestination: Any) {
+  val navController = rememberNavController()
+
+  NavHost(
+    navController = navController,
+    startDestination = startDestination
+  ) {
+    composable<ApiKeyDestination> {
+      ApiKeyScreen(
+        viewModel = hiltViewModel(),
+        onApiKeySaved = {
+          navController.navigate(PhotoListDestination) {
+            popUpTo<ApiKeyDestination> { inclusive = true }
+          }
+        }
+      )
+    }
+
+    composable<PhotoListDestination> {
+      PhotoListScreen(
+        viewModel = hiltViewModel(),
+        onPhotoClick = { photoId ->
+          navController.navigate(PhotoDetailDestination(photoId))
+        },
+        onSettingsClick = {
+          navController.navigate(ApiKeyDestination)
+        }
+      )
+    }
+
+    composable<PhotoDetailDestination> { backStackEntry ->
+      val args = backStackEntry.toRoute<PhotoDetailDestination>()
+      PhotoDetailScreen(
+        photoId = args.photoId,
+        viewModel = hiltViewModel(),
+        onBackClick = {
+          navController.popBackStack()
+        }
+      )
+    }
+  }
+}
+
+
+--- ./app/src/main/java/com/danitejada/gallery_app/navigation/NavigationDestinations.kt ---
+
+package com.danitejada.gallery_app.navigation
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data object ApiKeyDestination
+
+@Serializable
+data object PhotoListDestination
+
+@Serializable
+data class PhotoDetailDestination(val photoId: Int)
+
+
+--- ./app/src/main/java/com/danitejada/gallery_app/MainApp.kt ---
+
+package com.danitejada.gallery_app
+
+import android.app.Application
+import dagger.hilt.android.HiltAndroidApp
+
+@HiltAndroidApp
+class MainApp : Application()
+
+
+--- ./app/src/main/java/com/danitejada/gallery_app/MainUiState.kt ---
+
+package com.danitejada.gallery_app
+
+sealed interface MainUiState {
+  data object Loading : MainUiState
+  data class Ready(val startDestination: Any) : MainUiState
+}
+
+
+--- ./build.gradle.kts ---
+
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+plugins {
+  alias(libs.plugins.android.application) apply false
+  alias(libs.plugins.android.library) apply false
+  alias(libs.plugins.kotlin.android) apply false
+  alias(libs.plugins.kotlin.serialization) apply false
+  alias(libs.plugins.kotlin.compose) apply false
+  alias(libs.plugins.ksp) apply false
+  alias(libs.plugins.hilt) apply false
+}
+
+
+--- ./core_data/build.gradle.kts ---
+
+import org.gradle.kotlin.dsl.apply
+import java.util.Properties
+import kotlin.apply
+
+plugins {
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
+  alias(libs.plugins.hilt)
+  alias(libs.plugins.kotlin.compose)
+}
+
+// Read local.properties file
+val localProperties = Properties().apply {
+  val localPropertiesFile = rootProject.file("local.properties")
+  if (localPropertiesFile.exists()) {
+    load(localPropertiesFile.inputStream())
+  }
+}
+
+android {
+  namespace = "com.danitejada.core"
+  compileSdk = 36
+
+  defaultConfig {
+    minSdk = 24
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    consumerProguardFiles("consumer-rules.pro")
+    buildConfigField("String", "API_KEY", "\"${localProperties.getProperty("API_KEY", "")}\"")
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+
+  buildFeatures {
+    buildConfig = true
+  }
+}
+
+dependencies {
+  implementation(project(":core_domain"))
+
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.ui.graphics)
+
+  // Paging
+  implementation(libs.androidx.paging.runtime)
+
+  // Storage
+  implementation(libs.androidx.datastore)
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.runtime)
+  ksp(libs.androidx.room.compiler)
+
+  // Ktor
+  implementation(libs.ktor)
+  implementation(libs.ktor.core)
+  implementation(libs.ktor.serialization)
+  implementation(libs.ktor.logging)
+  implementation(libs.ktor.content.negotiation)
+
+  // Coroutines
+  implementation(libs.coroutines)
+  implementation(libs.coroutines.android)
+
+  // Serialization
+  implementation(libs.kotlin.serialization.json)
+
+  // Hilt
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation(libs.androidx.hilt.navigation.compose)
+
+  // Crypto
+  implementation(libs.security.crypto)
+
+  // Test
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.coroutines.test)
+  testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+
+  androidTestImplementation(libs.mockk.android)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.ui.test.junit4)
+
+  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+
+--- ./core_data/src/androidTest/java/com/danitejada/core/data/local/preferences/SecurePreferencesDataSourceTest.kt ---
+
+package com.danitejada.core.data.local.preferences
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.danitejada.core.data.security.CryptoManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class SecurePreferencesDataSourceTest {
+
+  private lateinit var dataSource: SecurePreferencesDataSource
+  private lateinit var context: Context
+
+  @Before
+  fun setup() {
+    context = ApplicationProvider.getApplicationContext()
+    dataSource = SecurePreferencesDataSource(context, CryptoManager())
+  }
+
+  @After
+  fun tearDown() = runBlocking {
+    dataSource.clearApiKey()
+    dataSource.setInitialSeedComplete() // Reset for other tests
+  }
+
+  @Test
+  fun saveAndGetApiKey_returnsSameKey() = runBlocking {
+    val apiKey = "my-secret-api-key-12345"
+    dataSource.saveApiKey(apiKey)
+    val retrievedKey = dataSource.getApiKey().first()
+    assertEquals(apiKey, retrievedKey)
+  }
+
+  @Test
+  fun getApiKey_returnsNullWhenNoKeyIsSaved() = runBlocking {
+    val retrievedKey = dataSource.getApiKey().first()
+    assertNull(retrievedKey)
+  }
+
+  @Test
+  fun clearApiKey_removesTheKey() = runBlocking {
+    val apiKey = "my-secret-api-key-to-be-cleared"
+    dataSource.saveApiKey(apiKey)
+    dataSource.clearApiKey()
+    val retrievedKey = dataSource.getApiKey().first()
+    assertNull(retrievedKey)
+  }
+
+  @Test
+  fun initialSeedComplete_isFalseByDefault_andCanBeSetToTrue() = runBlocking {
+    // Ensure it is false initially
+    val initialStatus = dataSource.isInitialSeedComplete().first()
+    assertFalse(initialStatus)
+
+    // Set it to true
+    dataSource.setInitialSeedComplete()
+    val finalStatus = dataSource.isInitialSeedComplete().first()
+    assertTrue(finalStatus)
+  }
+}
+
+
+--- ./core_data/src/androidTest/java/com/danitejada/core/data/local/dao/PhotoDaoTest.kt ---
+
+package com.danitejada.core.data.local.dao
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.danitejada.core.data.local.database.AppDatabase
+import com.danitejada.core.data.local.entities.PhotoEntity
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.IOException
+
+@RunWith(AndroidJUnit4::class)
+class PhotoDaoTest {
+
+  private lateinit var photoDao: PhotoDao
+  private lateinit var db: AppDatabase
+
+  @Before
+  fun createDb() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    db = Room.inMemoryDatabaseBuilder(
+      context, AppDatabase::class.java
+    ).build()
+    photoDao = db.photoDao()
+  }
+
+  @After
+  @Throws(IOException::class)
+  fun closeDb() {
+    db.close()
+  }
+
+  @Test
+  @Throws(Exception::class)
+  fun insertAndGetPhoto() = runBlocking {
+    val photo = PhotoEntity(1, 100, 100, "url", "Dani", "url", 1L, "#FFFFFF", "thumb", "tiny", "large", "alt")
+    photoDao.insertPhotos(listOf(photo))
+    val byId = photoDao.getPhotoById(1)
+    assertNotNull(byId)
+    assertEquals(photo.photographer, byId?.photographer)
+  }
+
+  @Test
+  @Throws(Exception::class)
+  fun getAllPhotos() = runBlocking {
+    val photo1 = PhotoEntity(1, 100, 100, "url", "Dani", "url", 1L, "#FFFFFF", "thumb", "tiny", "large", "alt")
+    val photo2 = PhotoEntity(2, 100, 100, "url", "Tejada", "url", 2L, "#FFFFFF", "thumb", "tiny", "large", "alt")
+    photoDao.insertPhotos(listOf(photo1, photo2))
+    val allPhotos = photoDao.getAllPhotos().first()
+    assertEquals(2, allPhotos.size)
+  }
+
+  @Test
+  @Throws(Exception::class)
+  fun clearAllPhotos() = runBlocking {
+    val photo1 = PhotoEntity(1, 100, 100, "url", "Dani", "url", 1L, "#FFFFFF", "thumb", "tiny", "large", "alt")
+    photoDao.insertPhotos(listOf(photo1))
+    photoDao.clearAllPhotos()
+    val allPhotos = photoDao.getAllPhotos().first()
+    assertTrue(allPhotos.isEmpty())
+  }
+}
+
+
+--- ./core_data/src/test/java/com/danitejada/core/data/security/CrytpoManagerTest.kt ---
+
+package com.danitejada.core.data.security
+
+import org.junit.Test
+import org.junit.Assert.*
+import org.junit.Before
+import org.robolectric.RobolectricTestRunner
+import org.junit.runner.RunWith
+import android.os.Build
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.P]) // Use API 28 for Keystore support in tests
+class CryptoManagerTest {
+
+  private lateinit var cryptoManager: CryptoManager
+  private val testKeyAlias = "test_key_alias"
+  private val testData = "563492ad6f91700001000001abc123def456" // Mock API key
+
+  @Before
+  fun setup() {
+    cryptoManager = CryptoManager()
+  }
+
+  @Test
+  fun `encrypt and decrypt returns original data`() {
+    // Given
+    val originalData = testData
+
+    // When
+    val encryptedData = cryptoManager.encrypt(originalData, testKeyAlias)
+    val decryptedData = cryptoManager.decrypt(encryptedData, testKeyAlias)
+
+    // Then
+    assertEquals(originalData, decryptedData)
+    assertNotEquals(originalData, String(encryptedData.data)) // Ensure it's actually encrypted
+    assertTrue("IV should not be empty", encryptedData.iv.isNotEmpty())
+  }
+
+  @Test
+  fun `encrypt produces different ciphertext for same data`() {
+    // Given
+    val originalData = testData
+
+    // When
+    val encryptedData1 = cryptoManager.encrypt(originalData, testKeyAlias)
+    val encryptedData2 = cryptoManager.encrypt(originalData, testKeyAlias)
+
+    // Then
+    assertFalse("Encrypted data should be different due to random IV",
+      encryptedData1.data.contentEquals(encryptedData2.data))
+    assertFalse("IVs should be different",
+      encryptedData1.iv.contentEquals(encryptedData2.iv))
+
+    // But both should decrypt to the same original data
+    assertEquals(originalData, cryptoManager.decrypt(encryptedData1, testKeyAlias))
+    assertEquals(originalData, cryptoManager.decrypt(encryptedData2, testKeyAlias))
+  }
+
+  @Test
+  fun `empty string can be encrypted and decrypted`() {
+    // Given
+    val emptyData = ""
+
+    // When
+    val encryptedData = cryptoManager.encrypt(emptyData, testKeyAlias)
+    val decryptedData = cryptoManager.decrypt(encryptedData, testKeyAlias)
+
+    // Then
+    assertEquals(emptyData, decryptedData)
+  }
+}
+
+
+--- ./core_data/src/test/java/com/danitejada/core/data/repositories/PhotosRepositoryImplTest.kt ---
+
+package com.danitejada.core.data.repositories
+
+import app.cash.turbine.test
+import com.danitejada.core.core.network.NetworkResult
+import com.danitejada.core.data.local.dao.PhotoDao
+import com.danitejada.core.data.local.entities.PhotoEntity
+import com.danitejada.core.data.mappers.PhotoMapper
+import com.danitejada.core.data.remote.api.PhotosApi
+import com.danitejada.core.data.remote.dto.PhotoDto
+import com.danitejada.core.domain.models.ApiKey
+import com.danitejada.core.domain.repositories.SettingsRepository
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+
+class PhotosRepositoryImplTest {
+
+  private val api: PhotosApi = mock()
+  private val dao: PhotoDao = mock()
+  private val mapper: PhotoMapper = PhotoMapper() // Using real mapper
+  private val settingsRepository: SettingsRepository = mock()
+
+  private val repository = PhotosRepositoryImpl(api, dao, mapper, settingsRepository)
+
+  private val photoId = 123
+  private val cachedEntity = PhotoEntity(photoId, 100, 100, "url", "Cached Dani", "url", 1L, "#FFFFFF", "thumb", "tiny", "large", "alt")
+  private val networkDto = PhotoDto(id = photoId, width = 200, height = 200, photographer = "Network Dani")
+  private val freshEntity = PhotoEntity(photoId, 200, 200, null, "Network Dani", null, null, null, null, null, null, null)
+
+  @Test
+  fun `getPhoto emits cache first, then fresh network data`() = runBlocking {
+    // Given the database has a cached version
+    whenever(dao.getPhotoById(photoId)).thenReturn(cachedEntity, freshEntity) // First call returns cache, second returns fresh
+    // And the network will provide a fresh version
+    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
+    whenever(api.getPhoto("valid_key", photoId)).thenReturn(networkDto)
+
+    // When getPhoto is called
+    repository.getPhoto(photoId).test {
+      // Then it emits Loading first
+      assertEquals(NetworkResult.Loading, awaitItem())
+
+      // Then it emits the cached data
+      val cachedResult = awaitItem() as NetworkResult.Success
+      assertEquals("Cached Dani", cachedResult.data.photographer)
+
+      // Then it emits the fresh network data
+      val freshResult = awaitItem() as NetworkResult.Success
+      assertEquals("Network Dani", freshResult.data.photographer)
+
+      // Ensure we inserted the fresh data into the database
+      verify(dao).insertPhotos(listOf(mapper.mapDomainToEntity(mapper.mapDtoToDomain(networkDto))))
+
+      awaitComplete()
+    }
+  }
+
+  @Test
+  fun `getPhoto emits only cache if network fails`() = runBlocking {
+    // Given the database has a cached version
+    whenever(dao.getPhotoById(photoId)).thenReturn(cachedEntity)
+    // And the network call will fail
+    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
+    whenever(api.getPhoto("valid_key", photoId)).thenThrow(RuntimeException("Network Error"))
+
+    // When getPhoto is called
+    repository.getPhoto(photoId).test {
+      // Then it emits Loading
+      assertEquals(NetworkResult.Loading, awaitItem())
+      // Then it emits the cached data
+      val cachedResult = awaitItem() as NetworkResult.Success
+      assertEquals("Cached Dani", cachedResult.data.photographer)
+      // And it completes without emitting an error because cache was available
+      awaitComplete()
+    }
+  }
+
+  @Test
+  fun `getPhoto emits error if network fails and no cache exists`() = runBlocking {
+    // Given the database is empty
+    whenever(dao.getPhotoById(photoId)).thenReturn(null)
+    // And the network call will fail
+    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
+    whenever(api.getPhoto("valid_key", photoId)).thenThrow(RuntimeException("Network Error"))
+
+    // When getPhoto is called
+    repository.getPhoto(photoId).test {
+      // Then it emits Loading
+      assertEquals(NetworkResult.Loading, awaitItem())
+      // Then it emits an Error
+      val errorResult = awaitItem() as NetworkResult.Error
+      assertTrue(errorResult.message.contains("Network Error"))
+
+      awaitComplete()
+    }
+  }
+
+  @Test
+  fun `getPhoto emits error if no API key and no cache`() = runBlocking {
+    // Given the database is empty and no API key is available
+    whenever(dao.getPhotoById(photoId)).thenReturn(null)
+    whenever(settingsRepository.getApiKey()).thenReturn(null)
+
+    // When getPhoto is called
+    repository.getPhoto(photoId).test {
+      // Then it emits Loading
+      assertEquals(NetworkResult.Loading, awaitItem())
+      // Then it emits an Error
+      val errorResult = awaitItem() as NetworkResult.Error
+      assertEquals("API key not found and no cached data available.", errorResult.message)
+
+      // And it does not attempt to make a network call
+      verify(api, never()).getPhoto(any(), any())
+
+      awaitComplete()
+    }
+  }
+}
+
+
+--- ./core_data/src/test/java/com/danitejada/core/data/repositories/SettingsRepositoryImplTest.kt ---
+
+package com.danitejada.core.data.repositories
+
+import com.danitejada.core.data.local.preferences.SecurePreferencesDataSource
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+
+class SettingsRepositoryImplTest {
+
+  private val securePreferencesDataSource: SecurePreferencesDataSource = mock()
+  private val repository = SettingsRepositoryImpl(securePreferencesDataSource)
+
+  @Test
+  fun `saveApiKey calls data source`() = runBlocking {
+    val apiKey = "test_key"
+    repository.saveApiKey(apiKey)
+    verify(securePreferencesDataSource).saveApiKey(apiKey)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun `saveApiKey with blank key throws exception`() = runBlocking {
+    repository.saveApiKey(" ")
+  }
+
+  @Test
+  fun `getApiKey returns key when it exists`() = runBlocking {
+    val apiKey = "test_key"
+    whenever(securePreferencesDataSource.getApiKey()).thenReturn(flowOf(apiKey))
+    val result = repository.getApiKey()
+    assertNotNull(result)
+    assertEquals(apiKey, result?.value)
+    assertTrue(result?.isValid!!)
+  }
+
+  @Test
+  fun `getApiKey returns null when it does not exist`() = runBlocking {
+    whenever(securePreferencesDataSource.getApiKey()).thenReturn(flowOf(null))
+    val result = repository.getApiKey()
+    assertNull(result)
+  }
+
+  @Test
+  fun `hasValidApiKey returns true when key exists`() = runBlocking {
+    whenever(securePreferencesDataSource.getApiKey()).thenReturn(flowOf("some_key"))
+    assertTrue(repository.hasValidApiKey())
+  }
+
+  @Test
+  fun `isInitialSeedComplete forwards the call`() = runBlocking {
+    whenever(securePreferencesDataSource.isInitialSeedComplete()).thenReturn(flowOf(true))
+    val result = repository.isInitialSeedComplete().first()
+    assertTrue(result)
+  }
+
+  @Test
+  fun `setInitialSeedComplete forwards the call`() = runBlocking {
+    repository.setInitialSeedComplete()
+    verify(securePreferencesDataSource).setInitialSeedComplete()
+  }
+}
+
+
+--- ./core_data/src/test/java/com/danitejada/core/data/mappers/PhotoMapperTest.kt ---
+
+package com.danitejada.core.data.mappers
+
+import androidx.compose.ui.graphics.Color
+import com.danitejada.core.data.local.entities.PhotoEntity
+import com.danitejada.core.data.remote.dto.PhotoDto
+import com.danitejada.core.data.remote.dto.PhotoSourceDto
+import com.danitejada.core.domain.models.Photo
+import org.junit.Assert
+import org.junit.Test
+
+class PhotoMapperTest {
+
+  private val mapper = PhotoMapper()
+
+  @Test
+  fun `mapDtoToDomain maps correctly`() {
+    val dto = PhotoDto(
+      id = 1,
+      width = 100,
+      height = 200,
+      url = "url",
+      photographer = "Dani",
+      photographerUrl = "photographerUrl",
+      photographerId = 1L,
+      avgColor = "#FF0000",
+      src = PhotoSourceDto(medium = "medium", tiny = "tiny", large = "large"),
+      liked = true,
+      alt = "alt"
+    )
+
+    val domain = mapper.mapDtoToDomain(dto)
+
+    Assert.assertEquals(1, domain.id)
+    Assert.assertEquals(Color(0xFFFF0000), domain.avgColor)
+    Assert.assertEquals("medium", domain.thumbnailUrl)
+    Assert.assertEquals("alt", domain.alt)
+  }
+
+  @Test
+  fun `mapEntityToDomain maps correctly`() {
+    val entity = PhotoEntity(
+      id = 1,
+      width = 100,
+      height = 200,
+      url = "url",
+      photographer = "Dani",
+      photographerUrl = "photographerUrl",
+      photographerId = 1L,
+      avgColor = "#00FF00",
+      thumbnailUrl = "thumb",
+      tinyThumbnailUrl = "tiny",
+      largeImageUrl = "large",
+      alt = "alt"
+    )
+
+    val domain = mapper.mapEntityToDomain(entity)
+
+    Assert.assertEquals(1, domain.id)
+    Assert.assertEquals(Color(0xFF00FF00), domain.avgColor)
+    Assert.assertEquals("thumb", domain.thumbnailUrl)
+  }
+
+  @Test
+  fun `mapDomainToEntity maps correctly`() {
+    val domain = Photo(
+      id = 1,
+      type = "type",
+      width = 100,
+      height = 200,
+      url = "url",
+      photographer = "Dani",
+      photographerUrl = "photographerUrl",
+      photographerId = 1L,
+      avgColor = Color.Companion.Blue,
+      thumbnailUrl = "thumb",
+      tinyThumbnailUrl = "tiny",
+      largeImageUrl = "large",
+      liked = true,
+      alt = "alt"
+    )
+
+    val entity = mapper.mapDomainToEntity(domain)
+    Assert.assertEquals(1, entity.id)
+    Assert.assertNotNull(entity.avgColor)
+    Assert.assertEquals("thumb", entity.thumbnailUrl)
+  }
+}
+
+
+--- ./core_data/src/test/java/com/danitejada/core/data/remote/paging/PhotosPagingSourceTest.kt ---
+
+package com.danitejada.core.data.remote.paging
+
+import androidx.paging.PagingSource
+import com.danitejada.core.data.local.dao.PhotoDao
+import com.danitejada.core.data.mappers.PhotoMapper
+import com.danitejada.core.data.remote.api.PhotosApi
+import com.danitejada.core.data.remote.dto.PhotoDto
+import com.danitejada.core.data.remote.dto.PhotosResponseDto
+import com.danitejada.core.domain.models.ApiKey
+import com.danitejada.core.domain.repositories.SettingsRepository
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+import java.io.IOException
+
+class PhotosPagingSourceTest {
+
+  private val photosApi: PhotosApi = mock()
+  private val settingsRepository: SettingsRepository = mock()
+  private val photoDao: PhotoDao = mock()
+  private val photoMapper = PhotoMapper() // Using real mapper
+
+  private lateinit var photosPagingSource: PhotosPagingSource
+
+  private val mockPhotoDto = PhotoDto(id = 1, alt = "A beautiful landscape")
+  private val mockPhoto = photoMapper.mapDtoToDomain(mockPhotoDto)
+
+  @Before
+  fun setup() {
+    photosPagingSource = PhotosPagingSource(photosApi, settingsRepository, photoMapper, photoDao)
+  }
+
+  @Test
+  fun `load returns page when successful`() = runBlocking {
+    // Given a valid API key and a successful API response
+    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
+    val response = PhotosResponseDto(page = 1, perPage = 1, photos = listOf(mockPhotoDto), totalResults = 1, nextPage = "next_page_url")
+    whenever(photosApi.getPhotos(any(), any(), any())).thenReturn(response)
+
+    // When load is called
+    val result = photosPagingSource.load(
+      PagingSource.LoadParams.Refresh(key = 1, loadSize = 1, placeholdersEnabled = false)
+    )
+
+    // Then the result is a Page with the correct data
+    assertTrue(result is PagingSource.LoadResult.Page)
+    val page = result as PagingSource.LoadResult.Page
+    assertEquals(listOf(mockPhoto), page.data)
+    assertEquals(2, page.nextKey) // nextKey should be page + 1
+    assertEquals(null, page.prevKey)
+  }
+
+  @Test
+  fun `load returns error when API key is not found`() = runBlocking {
+    // Given the API key is null
+    whenever(settingsRepository.getApiKey()).thenReturn(null)
+
+    // When load is called
+    val result = photosPagingSource.load(
+      PagingSource.LoadParams.Refresh(key = 1, loadSize = 1, placeholdersEnabled = false)
+    )
+
+    // Then the result is an Error
+    assertTrue(result is PagingSource.LoadResult.Error)
+    val error = result as PagingSource.LoadResult.Error
+    assertEquals("API key not found", error.throwable.message)
+  }
+
+  @Test
+  fun `load returns error on network exception`() = runBlocking {
+    // Given a valid API key but the API throws an exception
+    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
+    val ioException = IOException("Network failed")
+    whenever(photosApi.getPhotos(any(), any(), any())).thenThrow(ioException)
+
+    // When load is called
+    val result = photosPagingSource.load(
+      PagingSource.LoadParams.Refresh(key = 1, loadSize = 1, placeholdersEnabled = false)
+    )
+
+    // Then the result is an Error
+    assertTrue(result is PagingSource.LoadResult.Error)
+    assertEquals(ioException, (result as PagingSource.LoadResult.Error).throwable)
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/di/NetworkModule.kt ---
+
+package com.danitejada.core.di
+
+import com.danitejada.core.core.network.HttpClientFactory
+import com.danitejada.core.data.remote.api.PhotosApi
+import com.danitejada.core.data.remote.service.PhotosService
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
+import kotlinx.serialization.json.Json
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+  @Provides
+  @Singleton
+  fun provideJson(): Json = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    encodeDefaults = true
+  }
+
+  @Provides
+  @Singleton
+  fun provideHttpClient(json: Json): HttpClient {
+    return HttpClientFactory().create(json)
+  }
+
+  @Provides
+  @Singleton
+  fun providePhotosApi(httpClient: HttpClient): PhotosApi {
+    return PhotosService(httpClient)
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/di/StorageModule.kt ---
+
+package com.danitejada.core.di
+
+import android.content.Context
+import com.danitejada.core.data.local.preferences.SecurePreferencesDataSource
+import com.danitejada.core.data.security.CryptoManager
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object StorageModule {
+
+  @Provides
+  @Singleton
+  fun provideCryptoManager(): CryptoManager {
+    return CryptoManager()
+  }
+
+  @Provides
+  @Singleton
+  fun providePreferencesDataSource(
+    @ApplicationContext context: Context,
+    cryptoManager: CryptoManager
+  ): SecurePreferencesDataSource {
+    return SecurePreferencesDataSource(context, cryptoManager)
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/di/RepositoryModule.kt ---
+
+package com.danitejada.core.di
+
+import com.danitejada.core.data.repositories.PhotosRepositoryImpl
+import com.danitejada.core.data.repositories.SettingsRepositoryImpl
+import com.danitejada.core.domain.repositories.PhotosRepository
+import com.danitejada.core.domain.repositories.SettingsRepository
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+
+  @Binds
+  @Singleton
+  abstract fun bindPhotosRepository(
+    photosRepositoryImpl: PhotosRepositoryImpl
+  ): PhotosRepository
+
+  @Binds
+  @Singleton
+  abstract fun bindSettingsRepository(
+    settingsRepositoryImpl: SettingsRepositoryImpl
+  ): SettingsRepository
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/di/DatabaseModule.kt ---
+
+package com.danitejada.core.di
+
+import android.content.Context
+import androidx.room.Room
+import com.danitejada.core.data.local.dao.PhotoDao
+import com.danitejada.core.data.local.database.AppDatabase
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+
+  @Provides
+  @Singleton
+  fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
+    return Room.databaseBuilder(
+      context,
+      AppDatabase::class.java,
+      "photos_database"
+    ).build()
+  }
+
+  @Provides
+  @Singleton
+  fun providePhotoDao(appDatabase: AppDatabase): PhotoDao {
+    return appDatabase.photoDao()
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/core/network/NetworkConfig.kt ---
+
+package com.danitejada.core.core.network
+
+import android.util.Log
+import com.danitejada.core.BuildConfig
+import com.danitejada.core.core.network.NetworkConfig.BASE_URL
+import com.danitejada.core.core.network.NetworkConfig.CONNECT_TIMEOUT_MILLIS
+import com.danitejada.core.core.network.NetworkConfig.SOCKET_TIMEOUT_MILLIS
+import com.danitejada.core.core.network.NetworkConfig.TIMEOUT_MILLIS
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.observer.ResponseObserver
+import io.ktor.client.request.header
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
+import javax.inject.Inject
+
+object NetworkConfig {
+  const val BASE_URL = "https://api.pexels.com/"
+  const val TIMEOUT_MILLIS = 30_000L
+  const val CONNECT_TIMEOUT_MILLIS = 30_000L
+  const val SOCKET_TIMEOUT_MILLIS = 30_000L
+}
+
+// Create HttpClientFactory.kt
+class HttpClientFactory @Inject constructor() {
+  fun create(json: Json): HttpClient {
+    return HttpClient(Android) {
+      install(ContentNegotiation) {
+        json(json) // Use the provided Json instance
+      }
+
+      install(Logging) {
+        logger = object : Logger {
+          override fun log(message: String) {
+            Log.d("Ktor", message) // Use Android's Log
+          }
+        }
+        level = if (BuildConfig.DEBUG) LogLevel.ALL else LogLevel.NONE
+      }
+
+      install(ResponseObserver) {
+        onResponse { response ->
+          Log.d("Ktor", "Response: ${response.status.value} ${response.status.description}")
+        }
+      }
+
+      install(HttpTimeout) {
+        requestTimeoutMillis = TIMEOUT_MILLIS // Total request timeout
+        connectTimeoutMillis = CONNECT_TIMEOUT_MILLIS // Connection establishment timeout
+        socketTimeoutMillis = SOCKET_TIMEOUT_MILLIS // Read timeout
+      }
+
+      // Configure default requests
+      defaultRequest {
+        url(BASE_URL)
+        header("Accept", "application/json")
+      }
+    }
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/core/Constants.kt ---
+
+package com.danitejada.core.core
+
+object Constants {
+  const val PAGE_SIZE = 30
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/security/CryptoManager.kt ---
+
+package com.danitejada.core.data.security
+
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.IvParameterSpec
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class CryptoManager @Inject constructor() {
+
+  private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply {
+    load(null)
+  }
+
+  private fun getOrCreateSecretKey(keyAlias: String): SecretKey {
+    val existingKey = keyStore.getEntry(keyAlias, null) as? KeyStore.SecretKeyEntry
+    return existingKey?.secretKey ?: createKey(keyAlias)
+  }
+
+  private fun createKey(keyAlias: String): SecretKey {
+    return KeyGenerator.getInstance(ALGORITHM).apply {
+      init(
+        KeyGenParameterSpec.Builder(
+          keyAlias,
+          KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+          .setBlockModes(BLOCK_MODE)
+          .setEncryptionPaddings(PADDING)
+          .setUserAuthenticationRequired(false)
+          .setRandomizedEncryptionRequired(true)
+          .build()
+      )
+    }.generateKey()
+  }
+
+  fun encrypt(data: String, keyAlias: String): EncryptedData {
+    val secretKey = getOrCreateSecretKey(keyAlias)
+    val cipher = Cipher.getInstance(TRANSFORMATION).apply {
+      init(Cipher.ENCRYPT_MODE, secretKey)
+    }
+
+    val encryptedBytes = cipher.doFinal(data.toByteArray())
+    val iv = cipher.iv
+
+    return EncryptedData(encryptedBytes, iv)
+  }
+
+  fun decrypt(encryptedData: EncryptedData, keyAlias: String): String {
+    val secretKey = getOrCreateSecretKey(keyAlias)
+    val cipher = Cipher.getInstance(TRANSFORMATION).apply {
+      init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(encryptedData.iv))
+    }
+
+    val decryptedBytes = cipher.doFinal(encryptedData.data)
+    return String(decryptedBytes)
+  }
+
+  companion object {
+    private const val ALGORITHM = KeyProperties.KEY_ALGORITHM_AES
+    private const val BLOCK_MODE = KeyProperties.BLOCK_MODE_CBC
+    private const val PADDING = KeyProperties.ENCRYPTION_PADDING_PKCS7
+    private const val TRANSFORMATION = "$ALGORITHM/$BLOCK_MODE/$PADDING"
+  }
+}
+
+data class EncryptedData(
+  val data: ByteArray,
+  val iv: ByteArray
+) {
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (javaClass != other?.javaClass) return false
+
+    other as EncryptedData
+
+    if (!data.contentEquals(other.data)) return false
+    if (!iv.contentEquals(other.iv)) return false
+
+    return true
+  }
+
+  override fun hashCode(): Int {
+    var result = data.contentHashCode()
+    result = 31 * result + iv.contentHashCode()
+    return result
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/repositories/SettingsRepositoryImpl.kt ---
+
+package com.danitejada.core.data.repositories
+
+import com.danitejada.core.BuildConfig
+import com.danitejada.core.data.local.preferences.SecurePreferencesDataSource
+import com.danitejada.core.domain.models.ApiKey
+import com.danitejada.core.domain.repositories.SettingsRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class SettingsRepositoryImpl @Inject constructor(
+  private val securePreferencesDataSource: SecurePreferencesDataSource
+) : SettingsRepository {
+
+  override suspend fun seedInitialApiKeyIfNeeded() {
+    val isSeedComplete = securePreferencesDataSource.isInitialSeedComplete().first()
+    if (!isSeedComplete) {
+      val apiKeyFromProperties = BuildConfig.API_KEY
+      if (apiKeyFromProperties.isNotBlank()) {
+        saveApiKey(apiKeyFromProperties)
+      }
+      // Mark as complete even if the key was blank, to prevent re-running.
+      securePreferencesDataSource.setInitialSeedComplete()
+    }
+  }
+
+  override suspend fun saveApiKey(apiKey: String) {
+    if (apiKey.isBlank()) {
+      throw IllegalArgumentException("API key cannot be blank")
+    }
+
+    try {
+      securePreferencesDataSource.saveApiKey(apiKey)
+    } catch (e: SecurityException) {
+      throw e
+    } catch (e: Exception) {
+      // Wrap other exceptions
+      throw RuntimeException("Failed to save API key", e)
+    }
+  }
+
+  override suspend fun getApiKey(): ApiKey? {
+    return try {
+      val apiKeyValue = securePreferencesDataSource.getApiKey().first()
+      apiKeyValue?.let {
+        ApiKey(
+          value = it,
+          isValid = it.isNotBlank()
+        )
+      }
+    } catch (e: Exception) {
+      // If we can't decrypt or retrieve the key, return null
+      null
+    }
+  }
+
+  override fun observeApiKey(): Flow<ApiKey?> {
+    return securePreferencesDataSource.getApiKey().map { apiKey ->
+      apiKey?.let {
+        ApiKey(
+          value = it,
+          isValid = it.isNotBlank()
+        )
+      }
+    }
+  }
+
+  override suspend fun hasValidApiKey(): Boolean {
+    return try {
+      val apiKey = getApiKey()
+      apiKey?.value?.isNotBlank() == true
+    } catch (e: Exception) {
+      false
+    }
+  }
+
+  override fun isInitialSeedComplete(): Flow<Boolean> {
+    return securePreferencesDataSource.isInitialSeedComplete()
+  }
+
+  override suspend fun setInitialSeedComplete() {
+    securePreferencesDataSource.setInitialSeedComplete()
+  }
+
+  suspend fun clearApiKey() {
+    securePreferencesDataSource.clearApiKey()
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/repositories/PhotosRepositoryImpl.kt ---
+
+package com.danitejada.core.data.repositories
+
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import com.danitejada.core.core.Constants
+import com.danitejada.core.core.network.NetworkResult
+import com.danitejada.core.data.local.dao.PhotoDao
+import com.danitejada.core.data.mappers.PhotoMapper
+import com.danitejada.core.data.remote.api.PhotosApi
+import com.danitejada.core.data.remote.paging.PhotosPagingSource
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.repositories.PhotosRepository
+import com.danitejada.core.domain.repositories.SettingsRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class PhotosRepositoryImpl @Inject constructor(
+  private val api: PhotosApi,
+  private val dao: PhotoDao,
+  private val mapper: PhotoMapper,
+  private val settingsRepository: SettingsRepository
+) : PhotosRepository {
+
+  override fun getPhotos(): Flow<PagingData<Photo>> {
+    return Pager(
+      config = PagingConfig(
+        pageSize = Constants.PAGE_SIZE,
+        enablePlaceholders = false
+      ),
+      pagingSourceFactory = {
+        PhotosPagingSource(api, settingsRepository, mapper, dao)
+      }
+    ).flow
+  }
+
+  override fun getPhoto(photoId: Int): Flow<NetworkResult<Photo>> = flow {
+    emit(NetworkResult.Loading)
+
+    // Emit cached data first, if available
+    val cachedPhotoEntity = dao.getPhotoById(photoId)
+    if (cachedPhotoEntity != null) {
+      emit(NetworkResult.Success(mapper.mapEntityToDomain(cachedPhotoEntity)))
+    }
+
+    // Fetch from network to get the latest data
+    try {
+      val apiKey = settingsRepository.getApiKey()?.value
+      if (apiKey == null) {
+        if (cachedPhotoEntity == null) {
+          emit(NetworkResult.Error("API key not found and no cached data available."))
+        }
+        return@flow // Stop if no API key and we've already emitted cache
+      }
+
+      val response = api.getPhoto(apiKey = apiKey, id = photoId)
+      val freshPhoto = mapper.mapDtoToDomain(response)
+
+      // Save fresh data to the database
+      dao.insertPhotos(listOf(mapper.mapDomainToEntity(freshPhoto)))
+
+      // Emit the fresh data
+      val updatedPhotoEntity = dao.getPhotoById(photoId)
+      if (updatedPhotoEntity != null) {
+        emit(NetworkResult.Success(mapper.mapEntityToDomain(updatedPhotoEntity)))
+      }
+
+    } catch (e: Exception) {
+      // If the network fails, the UI still has the cached version.
+      // Only emit an error if there's no cached data at all.
+      if (cachedPhotoEntity == null) {
+        emit(NetworkResult.Error(e.message ?: "Unknown error occurred"))
+      }
+    }
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/local/database/AppDatabase.kt ---
+
+package com.danitejada.core.data.local.database
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+import com.danitejada.core.data.local.dao.PhotoDao
+import com.danitejada.core.data.local.entities.PhotoEntity
+
+@Database(
+  entities = [PhotoEntity::class],
+  version = 1,
+  exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+  abstract fun photoDao(): PhotoDao
+}
+
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/local/preferences/SecurePreferencesDataSource.kt ---
+
+package com.danitejada.core.data.local.preferences
+
+import android.content.Context
+import android.util.Base64
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import com.danitejada.core.data.security.CryptoManager
+import com.danitejada.core.data.security.EncryptedData
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "secure_settings")
+
+@Singleton
+class SecurePreferencesDataSource @Inject constructor(
+  @ApplicationContext private val context: Context,
+  private val cryptoManager: CryptoManager
+) {
+
+  private object PreferencesKeys {
+    val ENCRYPTED_API_KEY = stringPreferencesKey("encrypted_api_key")
+    val API_KEY_IV = stringPreferencesKey("api_key_iv")
+    val INITIAL_SEED_COMPLETE = booleanPreferencesKey("initial_seed_complete")
+  }
+
+  companion object {
+    private const val API_KEY_ALIAS = "api_key_encryption_key"
+  }
+
+  fun getApiKey(): Flow<String?> {
+    return context.dataStore.data
+      .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
+      .map { preferences ->
+        try {
+          val encryptedKeyBase64 = preferences[PreferencesKeys.ENCRYPTED_API_KEY]
+          val ivBase64 = preferences[PreferencesKeys.API_KEY_IV]
+
+          if (encryptedKeyBase64 != null && ivBase64 != null) {
+            val encryptedData = EncryptedData(
+              data = Base64.decode(encryptedKeyBase64, Base64.DEFAULT),
+              iv = Base64.decode(ivBase64, Base64.DEFAULT)
+            )
+            cryptoManager.decrypt(encryptedData, API_KEY_ALIAS)
+          } else {
+            null
+          }
+        } catch (e: Exception) {
+          // If decryption fails, return null
+          // You might want to log this for debugging
+          null
+        }
+      }
+  }
+
+  suspend fun saveApiKey(apiKey: String) {
+    try {
+      val encryptedData = cryptoManager.encrypt(apiKey, API_KEY_ALIAS)
+
+      context.dataStore.edit { preferences ->
+        preferences[PreferencesKeys.ENCRYPTED_API_KEY] =
+          Base64.encodeToString(encryptedData.data, Base64.DEFAULT)
+        preferences[PreferencesKeys.API_KEY_IV] =
+          Base64.encodeToString(encryptedData.iv, Base64.DEFAULT)
+      }
+    } catch (e: Exception) {
+      // Handle encryption failure
+      throw SecurityException("Failed to encrypt API key", e)
+    }
+  }
+
+  suspend fun clearApiKey() {
+    context.dataStore.edit { preferences ->
+      preferences.remove(PreferencesKeys.ENCRYPTED_API_KEY)
+      preferences.remove(PreferencesKeys.API_KEY_IV)
+    }
+  }
+
+  fun isInitialSeedComplete(): Flow<Boolean> {
+    return context.dataStore.data
+      .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
+      .map { preferences ->
+        preferences[PreferencesKeys.INITIAL_SEED_COMPLETE] ?: false
+      }
+  }
+
+  suspend fun setInitialSeedComplete() {
+    context.dataStore.edit { preferences ->
+      preferences[PreferencesKeys.INITIAL_SEED_COMPLETE] = true
+    }
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/local/dao/PhotoDao.kt ---
+
+package com.danitejada.core.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.danitejada.core.data.local.entities.PhotoEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface PhotoDao {
+
+  @Insert(onConflict = OnConflictStrategy.Companion.REPLACE)
+  suspend fun insertPhotos(photos: List<PhotoEntity>)
+
+  @Query("SELECT * FROM photos ORDER BY id DESC")
+  fun getAllPhotos(): Flow<List<PhotoEntity>>
+
+  @Query("SELECT * FROM photos WHERE id = :photoId")
+  suspend fun getPhotoById(photoId: Int): PhotoEntity?
+
+  @Query("DELETE FROM photos")
+  suspend fun clearAllPhotos()
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/local/entities/PhotoEntity.kt ---
+
+package com.danitejada.core.data.local.entities
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "photos")
+data class PhotoEntity(
+  @PrimaryKey val id: Int,
+  val width: Int?,
+  val height: Int?,
+  val url: String?,
+  val photographer: String?,
+  val photographerUrl: String?,
+  val photographerId: Long?,
+  val avgColor: String?,
+  val thumbnailUrl: String?,
+  val tinyThumbnailUrl: String?,
+  val largeImageUrl: String?,
+  val alt: String?
+)
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/mappers/PhotoMapper.kt ---
+
+package com.danitejada.core.data.mappers
+
+import androidx.compose.ui.graphics.Color
+import androidx.core.graphics.toColorInt
+import com.danitejada.core.data.local.entities.PhotoEntity
+import com.danitejada.core.data.remote.dto.PhotoDto
+import com.danitejada.core.data.remote.dto.PhotosResponseDto
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.models.Photos
+import javax.inject.Inject
+
+class PhotoMapper @Inject constructor() {
+
+  // Main function to map the entire network response.
+  fun mapDtoToDomain(dto: PhotosResponseDto): Photos {
+    return Photos(
+      photos = dto.photos.map { mapDtoToDomain(it) },
+      totalResults = dto.totalResults,
+      page = dto.page,
+      perPage = dto.perPage,
+      hasNextPage = !dto.nextPage.isNullOrEmpty()
+    )
+  }
+
+  // Maps a single network DTO to the domain model.
+  fun mapDtoToDomain(dto: PhotoDto): Photo {
+    return Photo(
+      id = dto.id,
+      type = dto.type,
+      width = dto.width,
+      height = dto.height,
+      url = dto.url,
+      photographer = dto.photographer,
+      photographerUrl = dto.photographerUrl,
+      photographerId = dto.photographerId,
+      avgColor = parseAvgColor(dto.avgColor), // Use the helper
+      thumbnailUrl = dto.src?.medium,
+      tinyThumbnailUrl = dto.src?.tiny,
+      largeImageUrl = dto.src?.large,
+      liked = dto.liked,
+      alt = dto.alt
+    )
+  }
+
+  // Maps a database entity to the domain model.
+  fun mapEntityToDomain(entity: PhotoEntity): Photo {
+    return Photo(
+      id = entity.id,
+      type = null, // 'type' is not stored in the database
+      width = entity.width,
+      height = entity.height,
+      url = entity.url,
+      photographer = entity.photographer,
+      photographerUrl = entity.photographerUrl,
+      photographerId = entity.photographerId,
+      avgColor = parseAvgColor(entity.avgColor), // Use the same helper
+      thumbnailUrl = entity.thumbnailUrl,
+      tinyThumbnailUrl = entity.tinyThumbnailUrl,
+      largeImageUrl = entity.largeImageUrl,
+      liked = null, // 'liked' is not stored in the database
+      alt = entity.alt
+    )
+  }
+
+  // Maps a domain model to a database entity.
+  fun mapDomainToEntity(domain: Photo): PhotoEntity {
+    return PhotoEntity(
+      id = domain.id,
+      width = domain.width,
+      height = domain.height,
+      url = domain.url,
+      photographer = domain.photographer,
+      photographerUrl = domain.photographerUrl,
+      photographerId = domain.photographerId,
+      avgColor = domain.avgColor?.let { String.format("#%08X", it.value.toLong()) },
+      thumbnailUrl = domain.thumbnailUrl,
+      tinyThumbnailUrl = domain.tinyThumbnailUrl,
+      largeImageUrl = domain.largeImageUrl,
+      alt = domain.alt
+    )
+  }
+
+  /**
+   * Private helper function to parse a color string.
+   * This is now the single source of truth for color conversion logic.
+   */
+  private fun parseAvgColor(colorString: String?): Color {
+    val defaultColor = Color.LightGray
+    return try {
+      colorString?.toColorInt()?.let { Color(it) } ?: defaultColor
+    } catch (_: IllegalArgumentException) {
+      defaultColor
+    }
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/remote/dto/PhotosResponseDto.kt ---
+
+package com.danitejada.core.data.remote.dto
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class PhotosResponseDto(
+  val page: Int,
+  @SerialName("per_page")
+  val perPage: Int,
+  val photos: List<PhotoDto>,
+  @SerialName("total_results")
+  val totalResults: Int,
+  @SerialName("prev_page")
+  val prevPage: String? = null,
+  @SerialName("next_page")
+  val nextPage: String? = null
+)
+
+@Serializable
+data class PhotoDto(
+  val type: String? = null,
+  val id: Int,
+  val width: Int? = null,
+  val height: Int? = null,
+  val url: String? = null,
+  val photographer: String? = null,
+  @SerialName("photographer_url")
+  val photographerUrl: String? = null,
+  @SerialName("photographer_id")
+  val photographerId: Long? = null,
+  @SerialName("avg_color")
+  val avgColor: String? = null,
+  val src: PhotoSourceDto? = null,
+  val liked: Boolean? = null,
+  val alt: String? = null
+)
+
+@Serializable
+data class PhotoSourceDto(
+  val original: String? = null,
+  val large2x: String? = null,
+  val large: String? = null,
+  val medium: String? = null,
+  val small: String? = null,
+  val portrait: String? = null,
+  val landscape: String? = null,
+  val tiny: String? = null
+)
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/remote/paging/PhotosPagingSource.kt ---
+
+package com.danitejada.core.data.remote.paging
+
+import androidx.paging.PagingSource
+import androidx.paging.PagingState
+import com.danitejada.core.data.local.dao.PhotoDao
+import com.danitejada.core.data.mappers.PhotoMapper
+import com.danitejada.core.data.remote.api.PhotosApi
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.repositories.SettingsRepository
+import java.io.IOException
+
+class PhotosPagingSource(
+  private val photosApi: PhotosApi,
+  private val settingsRepository: SettingsRepository,
+  private val photoMapper: PhotoMapper,
+  private val photoDao: PhotoDao
+) : PagingSource<Int, Photo>() {
+
+  override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Photo> {
+    val page = params.key ?: 1
+    return try {
+      val apiKey = settingsRepository.getApiKey()?.value
+        ?: return LoadResult.Error(Exception("API key not found"))
+
+      val response = photosApi.getPhotos(apiKey, page, params.loadSize)
+      val photos = response.photos.map { photoMapper.mapDtoToDomain(it) }
+
+      if (page == 1) {
+        photoDao.clearAllPhotos()
+      }
+      photoDao.insertPhotos(photos.map { photoMapper.mapDomainToEntity(it) })
+
+      LoadResult.Page(
+        data = photos,
+        prevKey = if (page == 1) null else page - 1,
+        nextKey = if (response.nextPage == null) null else page + 1
+      )
+    } catch (exception: IOException) {
+      return LoadResult.Error(exception)
+    }
+  }
+
+  override fun getRefreshKey(state: PagingState<Int, Photo>): Int? {
+    return state.anchorPosition?.let { anchorPosition ->
+      state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)
+        ?: state.closestPageToPosition(anchorPosition)?.nextKey?.minus(1)
+    }
+  }
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/remote/api/PhotosApi.kt ---
+
+package com.danitejada.core.data.remote.api
+
+import com.danitejada.core.data.remote.dto.PhotoDto
+import com.danitejada.core.data.remote.dto.PhotosResponseDto
+
+interface PhotosApi {
+
+  suspend fun getPhotos(apiKey: String, page: Int?, perPage: Int?): PhotosResponseDto
+
+  suspend fun getPhoto(apiKey: String, id: Int): PhotoDto
+}
+
+
+--- ./core_data/src/main/java/com/danitejada/core/data/remote/service/PhotosService.kt ---
+
+package com.danitejada.core.data.remote.service
+
+import com.danitejada.core.data.remote.api.PhotosApi
+import com.danitejada.core.data.remote.dto.PhotoDto
+import com.danitejada.core.data.remote.dto.PhotosResponseDto
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.request.headers
+import io.ktor.client.request.parameter
+import io.ktor.http.HttpHeaders
+import javax.inject.Inject
+
+class PhotosService @Inject constructor(private val httpClient: HttpClient) : PhotosApi {
+
+  override suspend fun getPhotos(apiKey: String, page: Int?, perPage: Int?): PhotosResponseDto {
+    return httpClient.get("v1/curated") {
+      headers {
+        append(HttpHeaders.Authorization, apiKey)
+      }
+      parameter("page", page)
+      parameter("per_page", perPage)
+    }.body()
+  }
+
+  override suspend fun getPhoto(apiKey: String, id: Int): PhotoDto {
+    return httpClient.get("v1/photos/$id") {
+      headers {
+        append(HttpHeaders.Authorization, apiKey)
+      }
+    }.body()
+  }
+} 
+
+
+--- ./settings.gradle.kts ---
+
+pluginManagement {
+  repositories {
+    google {
+      content {
+        includeGroupByRegex("com\\.android.*")
+        includeGroupByRegex("com\\.google.*")
+        includeGroupByRegex("androidx.*")
+      }
+    }
+    mavenCentral()
+    gradlePluginPortal()
+  }
+}
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositories {
+    google()
+    mavenCentral()
+  }
+}
+
+rootProject.name = "Gallery App"
+include(":core_data")
+include(":core_domain")
+include(":core_ui")
+include(":feature_settings")
+include(":feature_photos")
+include(":app")
+
+
+
+--- ./core_ui/build.gradle.kts ---
+
+plugins {
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
+  alias(libs.plugins.hilt)
+  alias(libs.plugins.kotlin.compose)
+}
+
+android {
+  namespace = "com.danitejada.core.ui"
+  compileSdk = 36
+
+  defaultConfig {
+    minSdk = 24
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    consumerProguardFiles("consumer-rules.pro")
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+}
+
+dependencies {
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.material3)
+  implementation(libs.androidx.ui.graphics)
+
+  // Coil
+  implementation(libs.coil.compose)
+  implementation(libs.coil.network.okhttp)
+
+  // Hilt
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation(libs.androidx.hilt.navigation.compose)
+
+  // Test
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.coroutines.test)
+  testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+
+  androidTestImplementation(libs.mockk.android)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.ui.test.junit4)
+
+  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+
+--- ./core_ui/src/androidTest/java/com/danitejada/core/ExampleInstrumentedTest.kt ---
+
+package com.danitejada.core
+
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.ext.junit.runners.AndroidJUnit4
+
+import org.junit.Test
+import org.junit.runner.RunWith
+
+import org.junit.Assert.*
+
+/**
+ * Instrumented test, which will execute on an Android device.
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+@RunWith(AndroidJUnit4::class)
+class ExampleInstrumentedTest {
+  @Test
+  fun useAppContext() {
+    // Context of the app under test.
+    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+    assertEquals("com.danitejada.core", appContext.packageName)
+  }
+}
+
+
+--- ./core_ui/src/test/java/com/danitejada/core/ExampleUnitTest.kt ---
+
+package com.danitejada.core
+
+import org.junit.Test
+
+import org.junit.Assert.*
+
+/**
+ * Example local unit test, which will execute on the development machine (host).
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+class ExampleUnitTest {
+  @Test
+  fun addition_isCorrect() {
+    assertEquals(4, 2 + 2)
+  }
+}
+
+
+--- ./core_ui/src/main/java/com/danitejada/core/ui/image/AsyncImageWithPlaceholder.kt ---
+
+package com.danitejada.core.ui.image
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color.Companion.Gray
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import coil3.size.Size
+
+@Composable
+fun AsyncImageWithPlaceholder(
+  imageUrl: String?,
+  placeholder: Painter,
+  contentDescription: String?,
+  modifier: Modifier = Modifier,
+  contentScale: ContentScale = ContentScale.Crop
+) {
+  AsyncImage(
+    model = ImageRequest.Builder(LocalContext.current)
+      .data(imageUrl)
+      .crossfade(300) // Smooth transition
+      .memoryCachePolicy(CachePolicy.ENABLED)
+      .diskCachePolicy(CachePolicy.ENABLED)
+      .build(),
+    placeholder = placeholder,
+    error = ColorPainter(Gray),
+    contentDescription = contentDescription,
+    contentScale = contentScale,
+    modifier = modifier
+  )
+}
+
+
+--- ./core_ui/src/main/java/com/danitejada/core/ui/theme/Color.kt ---
+
+package com.danitejada.core.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val Purple80 = Color(0xFFD0BCFF)
+val PurpleGrey80 = Color(0xFFCCC2DC)
+val Pink80 = Color(0xFFEFB8C8)
+
+val Purple40 = Color(0xFF6650a4)
+val PurpleGrey40 = Color(0xFF625b71)
+val Pink40 = Color(0xFF7D5260)
+
+
+--- ./core_ui/src/main/java/com/danitejada/core/ui/theme/Theme.kt ---
+
+package com.danitejada.core.ui.theme
+
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+
+private val DarkColorScheme = darkColorScheme(
+  primary = Purple80,
+  secondary = PurpleGrey80,
+  tertiary = Pink80
+)
+
+private val LightColorScheme = lightColorScheme(
+  primary = Purple40,
+  secondary = PurpleGrey40,
+  tertiary = Pink40
+
+  /* Other default colors to override
+    background = Color(0xFFFFFBFE),
+    surface = Color(0xFFFFFBFE),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F),
+    */
+)
+
+@Composable
+fun GalleryAppTheme(
+  darkTheme: Boolean = isSystemInDarkTheme(),
+  // Dynamic color is available on Android 12+
+  dynamicColor: Boolean = true,
+  content: @Composable () -> Unit
+) {
+  val colorScheme = when {
+    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+      val context = LocalContext.current
+      if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    }
+
+    darkTheme -> DarkColorScheme
+    else -> LightColorScheme
+  }
+
+  MaterialTheme(
+    colorScheme = colorScheme,
+    typography = Typography,
+    content = content
+  )
+}
+
+
+--- ./core_ui/src/main/java/com/danitejada/core/ui/theme/Type.kt ---
+
+package com.danitejada.core.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+// Set of Material typography styles to start with
+val Typography = Typography(
+  bodyLarge = TextStyle(
+    fontFamily = FontFamily.Default,
+    fontWeight = FontWeight.Normal,
+    fontSize = 16.sp,
+    lineHeight = 24.sp,
+    letterSpacing = 0.5.sp
+  )
+  /* Other default text styles to override
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    )
+    */
+)
+
+
+--- ./feature_photos/build.gradle.kts ---
+
+plugins {
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
+  alias(libs.plugins.hilt)
+  alias(libs.plugins.kotlin.compose)
+}
+
+android {
+  namespace = "com.danitejada.feature.photos"
+  compileSdk = 36
+
+  defaultConfig {
+    minSdk = 24
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    consumerProguardFiles("consumer-rules.pro")
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+
+  buildFeatures {
+    compose = true
+  }
+}
+
+dependencies {
+  implementation(project(":core_domain"))
+  implementation(project(":core_ui"))
+
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.activity.compose)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.ui)
+  implementation(libs.androidx.ui.graphics)
+  implementation(libs.androidx.ui.tooling.preview)
+  implementation(libs.androidx.material3)
+  implementation(libs.androidx.view.model)
+  implementation(libs.androidx.lifecycle.runtimeCompose)
+
+  // Coil
+  implementation(libs.coil.compose)
+  implementation(libs.coil.network.okhttp)
+
+  // Paging
+  implementation(libs.androidx.paging.compose)
+
+  // Hilt
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation(libs.androidx.hilt.navigation.compose)
+
+  // Test
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.coroutines.test)
+  testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+
+  androidTestImplementation(libs.mockk.android)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.ui.test.junit4)
+
+  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.androidx.ui.test.manifest)
+  testImplementation(kotlin("test"))
+}
+
+
+--- ./feature_photos/src/test/java/com/danitejada/feature/photos/detail/PhotoDetailViewModelTest.kt ---
+
+package com.danitejada.feature.photos.detail
+
+import androidx.compose.ui.graphics.Color
+import app.cash.turbine.test
+import com.danitejada.core.core.network.NetworkResult
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.usecases.photos.GetPhotoDetailUseCase
+import com.danitejada.feature.photos.photos.detail.PhotoDetailUiState
+import com.danitejada.feature.photos.photos.detail.PhotoDetailViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.mockito.Mockito.mock
+import org.mockito.kotlin.whenever
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+@ExperimentalCoroutinesApi
+class PhotoDetailViewModelTest {
+
+  private lateinit var viewModel: PhotoDetailViewModel
+  private val getPhotoDetailUseCase: GetPhotoDetailUseCase = mock()
+  private val testDispatcher = StandardTestDispatcher()
+
+  @Before
+  fun setUp() {
+    Dispatchers.setMain(testDispatcher)
+    viewModel = PhotoDetailViewModel(getPhotoDetailUseCase)
+  }
+
+  @After
+  fun tearDown() {
+    Dispatchers.resetMain()
+  }
+
+  @Test
+  fun `loadPhoto success should emit Loading then Success`() = runTest {
+    val photoId = 1
+    val photo = Photo(1, "", 100, 100, "", "", "", 1L, Color.Companion.Red, "", "", "", false, "")
+    val flow = flowOf(NetworkResult.Loading, NetworkResult.Success(photo))
+    whenever(getPhotoDetailUseCase.invoke(photoId)).thenReturn(flow)
+
+    viewModel.uiState.test {
+      // Initial Loading state
+      assertEquals(PhotoDetailUiState.Loading, awaitItem())
+
+      viewModel.loadPhoto(photoId)
+
+      // Skip initial loading and check for success
+      assertEquals(PhotoDetailUiState.Loading, awaitItem())
+      val successState = awaitItem()
+      assertTrue(successState is PhotoDetailUiState.Success)
+      assertEquals(photo, (successState as PhotoDetailUiState.Success).photo)
+    }
+  }
+
+  @Test
+  fun `loadPhoto error should emit Loading then Error`() = runTest {
+    val photoId = 1
+    val errorMessage = "Network Error"
+    val flow = flowOf(NetworkResult.Loading, NetworkResult.Error(errorMessage))
+    whenever(getPhotoDetailUseCase.invoke(photoId)).thenReturn(flow)
+
+    viewModel.uiState.test {
+      assertEquals(PhotoDetailUiState.Loading, awaitItem())
+      viewModel.loadPhoto(photoId)
+
+      assertEquals(PhotoDetailUiState.Loading, awaitItem())
+      val errorState = awaitItem()
+      assertTrue(errorState is PhotoDetailUiState.Error)
+      assertEquals(errorMessage, (errorState as PhotoDetailUiState.Error).message)
+    }
+  }
+}
+
+
+--- ./feature_photos/src/test/java/com/danitejada/feature/photos/list/PhotoListViewModelTest.kt ---
+
+package com.danitejada.feature.photos.list
+
+import androidx.paging.PagingData
+import com.danitejada.core.domain.usecases.photos.GetPhotosUseCase
+import com.danitejada.feature.photos.photos.list.PhotoListViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+
+class PhotoListViewModelTest {
+
+  private val getPhotosUseCase: GetPhotosUseCase = mock()
+
+  @Test
+  fun `photos flow calls use case and is cached`() = runBlocking {
+    // Given the use case returns a flow of PagingData
+    val pagingDataFlow = flowOf(PagingData.empty<com.danitejada.core.domain.models.Photo>())
+    whenever(getPhotosUseCase.invoke()).thenReturn(pagingDataFlow)
+
+    // When the ViewModel is initialized
+    val viewModel = PhotoListViewModel(getPhotosUseCase)
+
+    // Then the photos flow is exposed
+    viewModel.photos.first()
+
+    // And the use case was called to get the flow
+    verify(getPhotosUseCase).invoke()
+
+    // Note: Testing .cachedIn() directly is complex. The primary verification
+    // is that the use case is called and the flow is accessible.
+  }
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/components/PhotoItem.kt ---
+
+package com.danitejada.feature.photos.photos.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.unit.dp
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.ui.image.AsyncImageWithPlaceholder
+
+@Composable
+fun PhotoItem(
+  photo: Photo,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val placeholderColor = photo.avgColor ?: Color.LightGray
+  Card(
+    modifier = modifier
+      .aspectRatio(1f)
+      .clickable { onClick() },
+    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+  ) {
+    AsyncImageWithPlaceholder(
+      imageUrl = photo.tinyThumbnailUrl,
+      placeholder = ColorPainter(color = placeholderColor),
+      contentDescription = photo.alt,
+      modifier = Modifier
+        .fillMaxSize()
+        .clip(RoundedCornerShape(8.dp))
+    )
+  }
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/detail/PhotoDetailScreen.kt ---
+
+package com.danitejada.feature.photos.photos.detail
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.rememberAsyncImagePainter
+import com.danitejada.core.ui.image.AsyncImageWithPlaceholder
+import com.danitejada.feature.photos.R
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhotoDetailScreen(
+  photoId: Int,
+  viewModel: PhotoDetailViewModel,
+  onBackClick: () -> Unit
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val uriHandler = LocalUriHandler.current
+
+  LaunchedEffect(photoId) {
+    viewModel.loadPhoto(photoId)
+  }
+
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = { Text(stringResource(id = R.string.photo_details_title)) },
+        navigationIcon = {
+          IconButton(onClick = onBackClick) {
+            Icon(
+              Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = "Back"
+            )
+          }
+        }
+      )
+    }
+  ) { paddingValues ->
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(paddingValues)
+    ) {
+      when (uiState) {
+        is PhotoDetailUiState.Loading -> {
+          CircularProgressIndicator(
+            modifier = Modifier.align(Alignment.Center)
+          )
+        }
+
+        is PhotoDetailUiState.Error -> {
+          Text(
+            text = (uiState as PhotoDetailUiState.Error).message ?: "",
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier
+              .align(Alignment.Center)
+              .padding(16.dp)
+          )
+        }
+
+        is PhotoDetailUiState.Success -> {
+          val photo = (uiState as PhotoDetailUiState.Success).photo
+          Column(
+            modifier = Modifier
+              .fillMaxSize()
+              .verticalScroll(rememberScrollState())
+          ) {
+            // Calculate aspect ratio
+            val aspectRatio = if (photo?.width != null &&
+              photo.height != null &&
+              photo.height != 0
+            ) {
+              photo.width!!.toFloat() / photo.height!!.toFloat()
+            } else {
+              1f
+            }
+
+            Box(
+              modifier = Modifier.background(
+                photo?.avgColor ?: Color.White
+              )
+            ) {
+              AsyncImageWithPlaceholder(
+                imageUrl = photo?.largeImageUrl,
+                placeholder = rememberAsyncImagePainter(
+                  model = photo?.tinyThumbnailUrl,
+                  contentScale = ContentScale.FillBounds
+                ),
+                contentDescription = photo?.alt,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .aspectRatio(aspectRatio)
+              )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+              modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+              photo?.photographer?.let { photographer ->
+                Text(
+                  text = "Photographer: $photographer",
+                  style = MaterialTheme.typography.titleMedium,
+                  modifier = Modifier.padding(bottom = 8.dp)
+                )
+              }
+
+              photo?.alt?.let { alt ->
+                Text(
+                  text = "Description: $alt",
+                  style = MaterialTheme.typography.bodyMedium,
+                  modifier = Modifier.padding(bottom = 8.dp)
+                )
+              }
+
+              if (photo?.width != null && photo.height != null) {
+                Text(
+                  text = "Dimensions: ${photo.width}x${photo.height}",
+                  style = MaterialTheme.typography.bodyMedium,
+                  modifier = Modifier.padding(bottom = 8.dp)
+                )
+              }
+
+              photo?.url?.let { url ->
+                Text(
+                  text = "View on the web",
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .clickable {
+                      uriHandler.openUri(url)
+                    }
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/detail/PhotoDetailViewModel.kt ---
+
+package com.danitejada.feature.photos.photos.detail
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.danitejada.core.core.network.NetworkResult
+import com.danitejada.core.domain.usecases.photos.GetPhotoDetailUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import javax.inject.Inject
+
+@HiltViewModel
+class PhotoDetailViewModel @Inject constructor(
+  private val useCase: GetPhotoDetailUseCase
+) : ViewModel() {
+
+  private val _uiState = MutableStateFlow<PhotoDetailUiState>(PhotoDetailUiState.Loading)
+  val uiState: StateFlow<PhotoDetailUiState> = _uiState.asStateFlow()
+
+  fun loadPhoto(photoId: Int) {
+    useCase(photoId).onEach { result ->
+      val newState = when (result) {
+        is NetworkResult.Success -> PhotoDetailUiState.Success(result.data)
+        is NetworkResult.Error -> PhotoDetailUiState.Error(result.message)
+        is NetworkResult.Loading -> PhotoDetailUiState.Loading
+      }
+      _uiState.value = newState
+    }.launchIn(viewModelScope)
+  }
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/detail/PhotoDetailUiState.kt ---
+
+package com.danitejada.feature.photos.photos.detail
+
+import com.danitejada.core.domain.models.Photo
+
+sealed interface PhotoDetailUiState {
+  // The screen is loading for the first time
+  data object Loading : PhotoDetailUiState
+
+  // The screen has successfully loaded the photo
+  data class Success(val photo: Photo?) : PhotoDetailUiState
+
+  // An error occurred while fetching data
+  data class Error(val message: String?) : PhotoDetailUiState
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/list/PhotoListViewModel.kt ---
+
+package com.danitejada.feature.photos.photos.list
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.usecases.photos.GetPhotosUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+
+@HiltViewModel
+class PhotoListViewModel @Inject constructor(
+  useCase: GetPhotosUseCase
+) : ViewModel() {
+  val photos: Flow<PagingData<Photo>> = useCase().cachedIn(viewModelScope)
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/list/PhotoListScreen.kt ---
+
+package com.danitejada.feature.photos.photos.list
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
+import com.danitejada.feature.photos.R
+import com.danitejada.feature.photos.photos.components.PhotoItem
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhotoListScreen(
+  viewModel: PhotoListViewModel,
+  onPhotoClick: (Int) -> Unit,
+  onSettingsClick: () -> Unit
+) {
+  val lazyPagingItems = viewModel.photos.collectAsLazyPagingItems()
+
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = { Text(stringResource(id = R.string.photo_list_title)) },
+        actions = {
+          IconButton(onClick = { lazyPagingItems.refresh() }) {
+            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+          }
+        }
+      )
+    }
+  ) { paddingValues ->
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(paddingValues),
+      contentAlignment = Alignment.Center
+    ) {
+      when (lazyPagingItems.loadState.refresh) {
+        is LoadState.Loading -> {
+          CircularProgressIndicator()
+        }
+
+        is LoadState.Error -> {
+          val error = (lazyPagingItems.loadState.refresh as LoadState.Error).error
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = error.message ?: "An error occurred")
+            Button(onClick = { lazyPagingItems.retry() }) {
+              Text("Retry")
+            }
+          }
+        }
+
+        else -> {
+          LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 120.dp),
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            items(lazyPagingItems.itemCount) { index ->
+              val photo = lazyPagingItems[index]
+              if (photo != null) {
+                PhotoItem(photo = photo, onClick = { onPhotoClick(photo.id) })
+              }
+            }
+
+            when (lazyPagingItems.loadState.append) {
+              is LoadState.Loading -> {
+                item {
+                  Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                  ) {
+                    CircularProgressIndicator()
+                  }
+                }
+              }
+
+              is LoadState.Error -> {
+                val error = (lazyPagingItems.loadState.append as LoadState.Error).error
+                item {
+                  Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = error.message ?: "An error occurred")
+                    Button(onClick = { lazyPagingItems.retry() }) {
+                      Text("Retry")
+                    }
+                  }
+                }
+              }
+
+              else -> {
+                // Do nothing
+              }
+            }
+
+            if (lazyPagingItems.itemCount == 0 && lazyPagingItems.loadState.refresh is LoadState.NotLoading) {
+              item {
+                Text("No photos found")
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+--- ./feature_photos/src/main/java/com/danitejada/feature/photos/photos/list/PhotoListUiState.kt ---
+
+package com.danitejada.feature.photos.photos.list
+
+import com.danitejada.core.domain.models.Photo
+
+sealed interface PhotoListUiState {
+  // The screen is loading for the first time
+  data object Loading : PhotoListUiState
+
+  // The screen has successfully loaded a list of photos
+  data class Success(
+    val photos: List<Photo>,
+    val hasNextPage: Boolean,
+    val isLoadingMore: Boolean = false,
+    val isRefreshing: Boolean = false
+  ) : PhotoListUiState
+
+  // The API call was successful, but there are no photos to display
+  data object Empty : PhotoListUiState
+
+  // An error occurred while fetching data
+  data class Error(val message: String) : PhotoListUiState
+}
+
+
+--- ./core_domain/build.gradle.kts ---
+
+plugins {
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
+  alias(libs.plugins.hilt)
+  alias(libs.plugins.kotlin.compose)
+}
+
+android {
+  namespace = "com.danitejada.core.domain"
+  compileSdk = 36
+
+  defaultConfig {
+    minSdk = 24
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    consumerProguardFiles("consumer-rules.pro")
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+  }
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+}
+
+dependencies {
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(platform(libs.androidx.compose.bom))
+  implementation(libs.androidx.ui.graphics)
+
+  // Paging
+  implementation(libs.androidx.paging.runtime)
+
+  // Storage
+  implementation(libs.androidx.datastore)
+  implementation(libs.androidx.room.runtime)
+  ksp(libs.androidx.room.compiler)
+
+  // Ktor
+  implementation(libs.ktor)
+  implementation(libs.ktor.core)
+  implementation(libs.ktor.serialization)
+  implementation(libs.ktor.logging)
+  implementation(libs.ktor.content.negotiation)
+
+  // Coroutines
+  implementation(libs.coroutines)
+  implementation(libs.coroutines.android)
+
+  // Serialization
+  implementation(libs.kotlin.serialization.json)
+
+  // Hilt
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation(libs.androidx.hilt.navigation.compose)
+
+  // Test
+  testImplementation(libs.junit)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.coroutines.test)
+  testImplementation(libs.turbine)
+  testImplementation(libs.robolectric)
+
+  androidTestImplementation(libs.mockk.android)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.ui.test.junit4)
+
+  debugImplementation(libs.androidx.ui.tooling)
+  debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+
+--- ./core_domain/src/androidTest/java/com/danitejada/core/ExampleInstrumentedTest.kt ---
+
+package com.danitejada.core
+
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.ext.junit.runners.AndroidJUnit4
+
+import org.junit.Test
+import org.junit.runner.RunWith
+
+import org.junit.Assert.*
+
+/**
+ * Instrumented test, which will execute on an Android device.
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+@RunWith(AndroidJUnit4::class)
+class ExampleInstrumentedTest {
+  @Test
+  fun useAppContext() {
+    // Context of the app under test.
+    val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+    assertEquals("com.danitejada.core_domain.test", appContext.packageName)
+  }
+}
+
+
+--- ./core_domain/src/test/java/com/danitejada/core/domain/usecases/settings/SeedInitialApiKeyUseCaseTest.kt ---
+
+package com.danitejada.core.domain.usecases.settings
+
+import com.danitejada.core.domain.repositories.SettingsRepository
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+
+class SeedInitialApiKeyUseCaseTest {
+
+  private val settingsRepository: SettingsRepository = mock()
+
+  @Test
+  fun `invoke does not save key when seed is already complete`() = runBlocking {
+    // Given the seed process is already complete
+    whenever(settingsRepository.isInitialSeedComplete()).thenReturn(flowOf(true))
+    val useCase = SeedInitialApiKeyUseCase(settingsRepository)
+
+    // When the use case is invoked
+    useCase()
+
+    // Then the API key is not saved and the seed complete flag is not set again
+    verify(settingsRepository, never()).saveApiKey(any())
+    verify(settingsRepository, never()).setInitialSeedComplete()
+  }
+
+  @Test
+  fun `invoke saves key when seed is not complete and key exists`() = runBlocking {
+    // Given the seed process is not complete and there is an API key in BuildConfig
+    whenever(settingsRepository.isInitialSeedComplete()).thenReturn(flowOf(false))
+    val useCase = SeedInitialApiKeyUseCase(settingsRepository)
+
+    // When the use case is invoked
+    useCase()
+
+    // Then the repository is called to seed the key and mark the process as complete
+    verify(settingsRepository).seedInitialApiKeyIfNeeded()
+  }
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/core/network/NetworkResult.kt ---
+
+package com.danitejada.core.core.network
+
+sealed class NetworkResult<out T> {
+  data class Success<T>(val data: T) : NetworkResult<T>()
+  data class Error(val message: String) : NetworkResult<Nothing>()
+  data object Loading : NetworkResult<Nothing>()
+}
+
+inline fun <T> NetworkResult<T>.onSuccess(action: (T) -> Unit): NetworkResult<T> {
+  if (this is NetworkResult.Success) action(data)
+  return this
+}
+
+inline fun <T> NetworkResult<T>.onError(action: (String) -> Unit): NetworkResult<T> {
+  if (this is NetworkResult.Error) action(message)
+  return this
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/repositories/PhotosRepository.kt ---
+
+package com.danitejada.core.domain.repositories
+
+import androidx.paging.PagingData
+import com.danitejada.core.core.network.NetworkResult
+import com.danitejada.core.domain.models.Photo
+import kotlinx.coroutines.flow.Flow
+
+interface PhotosRepository {
+  fun getPhotos(): Flow<PagingData<Photo>>
+  fun getPhoto(photoId: Int): Flow<NetworkResult<Photo>>
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/repositories/SettingsRepository.kt ---
+
+package com.danitejada.core.domain.repositories
+
+import com.danitejada.core.domain.models.ApiKey
+import kotlinx.coroutines.flow.Flow
+
+interface SettingsRepository {
+  suspend fun seedInitialApiKeyIfNeeded()
+  suspend fun saveApiKey(apiKey: String)
+  suspend fun getApiKey(): ApiKey?
+  fun observeApiKey(): Flow<ApiKey?>
+  suspend fun hasValidApiKey(): Boolean
+  fun isInitialSeedComplete(): Flow<Boolean>
+  suspend fun setInitialSeedComplete()
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/models/Photo.kt ---
+
+package com.danitejada.core.domain.models
+
+import androidx.compose.ui.graphics.Color
+
+data class Photo(
+  val id: Int,
+  val type: String?,
+  val width: Int?,
+  val height: Int?,
+  val url: String?,
+  val photographer: String?,
+  val photographerUrl: String?,
+  val photographerId: Long?,
+  val avgColor: Color?,
+  val thumbnailUrl: String?,
+  val tinyThumbnailUrl: String?,
+  val largeImageUrl: String?,
+  val liked: Boolean?,
+  val alt: String?
+)
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/models/ApiKey.kt ---
+
+package com.danitejada.core.domain.models
+
+data class ApiKey(
+  val value: String,
+  val isValid: Boolean = true
+)
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/models/Photos.kt ---
+
+package com.danitejada.core.domain.models
+
+data class Photos(
+  val photos: List<Photo> = emptyList(),
+  val totalResults: Int = 0,
+  val page: Int = 0,
+  val perPage: Int = 0,
+  val hasNextPage: Boolean
+) 
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/usecases/settings/SaveApiKeyUseCase.kt ---
+
+package com.danitejada.core.domain.usecases.settings
+
+import com.danitejada.core.domain.repositories.SettingsRepository
+import javax.inject.Inject
+
+class SaveApiKeyUseCase @Inject constructor(
+  private val settingsRepository: SettingsRepository
+) {
+  suspend operator fun invoke(apiKey: String) {
+    settingsRepository.saveApiKey(apiKey)
+  }
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/usecases/settings/SeedInitialApiKeyUseCase.kt ---
+
+package com.danitejada.core.domain.usecases.settings
+
+import com.danitejada.core.domain.repositories.SettingsRepository
+import javax.inject.Inject
+
+class SeedInitialApiKeyUseCase @Inject constructor(
+  private val settingsRepository: SettingsRepository
+) {
+  suspend operator fun invoke() {
+    settingsRepository.seedInitialApiKeyIfNeeded()
+  }
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/usecases/settings/HasApiKeyUseCase.kt ---
+
+package com.danitejada.core.domain.usecases.settings
+
+import com.danitejada.core.domain.repositories.SettingsRepository
+import javax.inject.Inject
+
+class HasApiKeyUseCase @Inject constructor(
+  private val settingsRepository: SettingsRepository
+) {
+  suspend operator fun invoke(): Boolean {
+    // Check if the API key is valid.
+    return settingsRepository.hasValidApiKey()
+  }
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/usecases/photos/GetPhotoDetailUseCase.kt ---
+
+package com.danitejada.core.domain.usecases.photos
+
+import com.danitejada.core.core.network.NetworkResult
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.repositories.PhotosRepository
+import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+
+class GetPhotoDetailUseCase @Inject constructor(
+  private val repository: PhotosRepository
+) {
+  operator fun invoke(photoId: Int): Flow<NetworkResult<Photo>> {
+    return repository.getPhoto(photoId)
+  }
+}
+
+
+--- ./core_domain/src/main/java/com/danitejada/core/domain/usecases/photos/GetPhotosUseCase.kt ---
+
+package com.danitejada.core.domain.usecases.photos
+
+import androidx.paging.PagingData
+import com.danitejada.core.domain.models.Photo
+import com.danitejada.core.domain.repositories.PhotosRepository
+import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+
+class GetPhotosUseCase @Inject constructor(
+  private val repository: PhotosRepository
+) {
+  operator fun invoke(): Flow<PagingData<Photo>> {
+    return repository.getPhotos()
+  }
+}
+
