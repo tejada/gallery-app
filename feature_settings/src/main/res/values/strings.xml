@@ -1,0 +1,15 @@
+<resources>
+  <string name="app_name">feature_settings</string>
+  <string name="api_key_screen_title">Enter Pexels API Key</string>
+  <string name="api_key_label">API Key</string>
+  <string name="save_key_button">Save Key</string>
+
+  <string name="error_api_key_invalid">Invalid API key format. Please check your API key.</string>
+  <string name="error_api_key_empty">API key cannot be empty.</string>
+
+  <string name="error_security_generic">Security error: Unable to securely store the API key.</string>
+  <string name="error_network">Network error: Please check your connection and try again.</string>
+  <string name="error_encryption_failed">Failed to securely store the API key. Please try again.</string>
+  <string name="error_keystore_not_ready">Device security error. Please ensure your device has a lock screen set up.</string>
+  <string name="error_save_api_key_failed_generic">Failed to save the API key. An unknown error occurred.</string>
+</resources>
