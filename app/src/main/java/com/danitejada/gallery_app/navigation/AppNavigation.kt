@@ -25,7 +25,11 @@ fun AppNavigation(startDestination: Any) {
           navController.navigate(PhotoListDestination) {
             popUpTo<ApiKeyDestination> { inclusive = true }
           }
-        }
+        },
+        onBackClick = {
+          navController.popBackStack()
+        },
+        navController = navController
       )
     }
 

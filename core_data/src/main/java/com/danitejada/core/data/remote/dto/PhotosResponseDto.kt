@@ -3,6 +3,9 @@ package com.danitejada.core.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * Represents the JSON structure of a successful response from the Pexels API.
+ */
 @Serializable
 data class PhotosResponseDto(
   val page: Int,

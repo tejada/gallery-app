@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,8 +42,8 @@ fun PhotoListScreen(
       TopAppBar(
         title = { Text(stringResource(id = R.string.photo_list_title)) },
         actions = {
-          IconButton(onClick = { lazyPagingItems.refresh() }) {
-            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+          IconButton(onClick = onSettingsClick) {
+            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_button))
           }
         }
       )
@@ -100,9 +100,9 @@ fun PhotoListScreen(
                 val error = (lazyPagingItems.loadState.append as LoadState.Error).error
                 item {
                   Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = error.message ?: "An error occurred")
+                    Text(text = error.message ?: stringResource(R.string.error_occurred))
                     Button(onClick = { lazyPagingItems.retry() }) {
-                      Text("Retry")
+                      Text(stringResource(R.string.retry_button))
                     }
                   }
                 }
@@ -115,7 +115,7 @@ fun PhotoListScreen(
 
             if (lazyPagingItems.itemCount == 0 && lazyPagingItems.loadState.refresh is LoadState.NotLoading) {
               item {
-                Text("No photos found")
+                Text(stringResource(R.string.no_photos_found))
               }
             }
           }

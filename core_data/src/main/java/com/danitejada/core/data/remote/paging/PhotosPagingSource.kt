@@ -35,7 +35,9 @@ class PhotosPagingSource(
         prevKey = if (page == 1) null else page - 1,
         nextKey = if (response.nextPage == null) null else page + 1
       )
-    } catch (exception: IOException) {
+    } catch (exception: Exception) {
+      // Any exception thrown in the try block (network, parsing, DB, etc.)
+      // is caught here and converted into a state that the UI can handle.
       return LoadResult.Error(exception)
     }
   }

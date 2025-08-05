@@ -2,7 +2,7 @@
 
 A modern Android gallery application built to showcase a robust and scalable architecture using 100% Kotlin and Jetpack Compose. This project demonstrates the principles of Clean Architecture, separating concerns into distinct layers to create a maintainable and testable codebase. The app fetches and displays curated photos from the Pexels API.
 
-## 📸 Features
+## Features
 
 *   **Dynamic Start Screen**: The app intelligently checks if an API key is present. If not, it prompts the user to enter one; otherwise, it proceeds directly to the photo gallery.
 *   **Paginated Photo List**: Displays an infinite-scrolling grid of photos fetched from the Pexels API, using Jetpack Paging 3.
@@ -11,7 +11,7 @@ A modern Android gallery application built to showcase a robust and scalable arc
 *   **Offline Caching**: Fetched photos are cached in a local Room database, providing a basic offline experience and faster subsequent loads.
 *   **Error Handling**: The UI gracefully handles loading states, network errors, and empty states.
 
-## 🏛️ Architecture
+## Architecture
 
 This project strictly follows the principles of **Clean Architecture**, ensuring a clear separation of concerns. The codebase is organized into multiple modules, where each module has a specific responsibility. This modular approach enforces the architectural rules, improves build times, and promotes scalability.
 
@@ -39,7 +39,7 @@ This layer is responsible for providing data to the application. It implements t
     *   **Data Sources**: Manages connections to remote (Ktor API services) and local (Room database, Jetpack DataStore) data sources.
     *   **Mappers**: Transforms data between network models (DTOs), database models (Entities), and domain models.
 
-## 🛠️ Tech Stack & Key Libraries
+## Key Technologies
 
 *   **Language**: [Kotlin](https://kotlinlang.org/)
 *   **UI**: [Jetpack Compose](https://developer.android.com/jetpack/compose) - A modern declarative UI toolkit for Android.
@@ -64,7 +64,7 @@ This layer is responsible for providing data to the application. It implements t
     *   **Unit Tests**: JUnit4, Mockito, Turbine, Robolectric
     *   **UI Tests**: Espresso, Mockk
 
-## 🚀 Getting Started
+## Getting Started
 
 To build and run the project, you will need a Pexels API key.
 
@@ -74,3 +74,15 @@ To build and run the project, you will need a Pexels API key.
 
 2.  **Build and Run**:
     *   Open the project in Android Studio and run it on an emulator or a physical device. You can enter the API key in the settings screen within the app.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+*   Pexels API for providing the photo data.
+*   Jetpack Compose for enabling modern UI development.
+*   Hilt for dependency injection.
+*   Ktor for network requests.
+*   Coil for image loading.

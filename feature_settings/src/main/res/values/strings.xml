@@ -1,6 +1,7 @@
 <resources>
   <string name="app_name">feature_settings</string>
-  <string name="api_key_screen_title">Enter Pexels API Key</string>
+  <string name="settings_title">Settings</string>
+  <string name="api_key_screen_blurb">Enter Pexels API Key</string>
   <string name="api_key_label">API Key</string>
   <string name="save_key_button">Save Key</string>
 

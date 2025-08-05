@@ -69,8 +69,8 @@ class ApiKeyViewModel @Inject constructor(
    * Basic validation for Pexels API key format
    */
   private fun isValidApiKeyFormat(apiKey: String): Boolean {
-    // Pexels API keys are typically 39-40 characters long, alphanumeric
-    return apiKey.length in 30..50 && apiKey.matches(Regex("^[a-zA-Z0-9]+$"))
+    // Pexels API keys are typically 39-60 characters long, alphanumeric
+    return apiKey.length in 30..80 && apiKey.matches(Regex("^[a-zA-Z0-9]+$"))
   }
 
   /**

@@ -2,4 +2,8 @@
   <string name="app_name">feature_photos</string>
   <string name="photo_list_title">Photos</string>
   <string name="photo_details_title">Photo Details</string>
+  <string name="settings_button">Settings</string>
+  <string name="retry_button">Retry</string>
+  <string name="error_occurred">An error occurred</string>
+  <string name="no_photos_found">No photos found</string>
 </resources>
