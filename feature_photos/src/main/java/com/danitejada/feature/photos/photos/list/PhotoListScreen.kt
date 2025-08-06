@@ -52,13 +52,27 @@ import com.danitejada.common.R
 import com.danitejada.core.domain.models.Photo
 import com.danitejada.feature.photos.photos.components.PhotoItem
 
+/**
+ * Represents the paging state for the photo list screen.
+ */
 private sealed class PagingState {
+  /** Indicates the screen is loading for the first time. */
   object Loading : PagingState()
+  /** Indicates an error occurred while loading photos. */
   data class Error(val throwable: Throwable) : PagingState()
+  /** Indicates no photos are available to display. */
   object Empty : PagingState()
+  /** Indicates photos are available to display. */
   object Data : PagingState()
 }
 
+/**
+ * Composable function that renders the photo list screen.
+ *
+ * @param viewModel The ViewModel for managing photo list data.
+ * @param onPhotoClick Callback invoked when a photo is clicked, passing the photo ID.
+ * @param onSettingsClick Callback invoked when the settings button is clicked.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoListScreen(
@@ -102,6 +116,12 @@ fun PhotoListScreen(
   }
 }
 
+/**
+ * Determines the paging state based on the load state and item count.
+ *
+ * @param items The [LazyPagingItems] containing the photos.
+ * @return The current [PagingState].
+ */
 @Composable
 private fun rememberPagingState(items: LazyPagingItems<*>): PagingState {
   val refreshState = items.loadState.refresh
@@ -114,6 +134,13 @@ private fun rememberPagingState(items: LazyPagingItems<*>): PagingState {
   }
 }
 
+/**
+ * Renders the content of the photo list screen with pull-to-refresh functionality.
+ *
+ * @param lazyPagingItems The [LazyPagingItems] containing the photos.
+ * @param onPhotoClick Callback invoked when a photo is clicked, passing the photo ID.
+ * @param modifier The modifier for the composable.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhotoListContent(
@@ -141,6 +168,14 @@ private fun PhotoListContent(
   }
 }
 
+/**
+ * Renders the content based on the paging state.
+ *
+ * @param pagingState The current [PagingState].
+ * @param lazyPagingItems The [LazyPagingItems] containing the photos.
+ * @param onPhotoClick Callback invoked when a photo is clicked, passing the photo ID.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun PagingContent(
   pagingState: PagingState,
@@ -165,6 +200,11 @@ private fun PagingContent(
   }
 }
 
+/**
+ * Renders the loading state for the photo list screen.
+ *
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun LoadingState(
   modifier: Modifier = Modifier
@@ -190,6 +230,13 @@ private fun LoadingState(
   }
 }
 
+/**
+ * Renders the error state for the photo list screen.
+ *
+ * @param error The error that occurred.
+ * @param onRetry Callback invoked to retry loading the photos.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun ErrorState(
   error: Throwable,
@@ -227,6 +274,13 @@ private fun ErrorState(
   }
 }
 
+/**
+ * Renders the photo grid with lazy-loaded photos.
+ *
+ * @param lazyPagingItems The [LazyPagingItems] containing the photos.
+ * @param onPhotoClick Callback invoked when a photo is clicked, passing the photo ID.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun PhotoGrid(
   lazyPagingItems: LazyPagingItems<Photo>,
@@ -311,6 +365,11 @@ private fun PhotoGrid(
   }
 }
 
+/**
+ * Renders the empty state for the photo list screen.
+ *
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun EmptyState(
   modifier: Modifier = Modifier
@@ -337,6 +396,12 @@ private fun EmptyState(
   }
 }
 
+/**
+ * Renders an error item for failed append operations in the photo grid.
+ *
+ * @param error The error that occurred.
+ * @param onRetry Callback invoked to retry the append operation.
+ */
 @Composable
 private fun AppendErrorItem(
   error: Throwable,
@@ -364,6 +429,11 @@ private fun AppendErrorItem(
   }
 }
 
+/**
+ * Renders a shimmer effect for a loading photo item.
+ *
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun ShimmerPhotoItem(
   modifier: Modifier = Modifier
@@ -378,6 +448,12 @@ private fun ShimmerPhotoItem(
   }
 }
 
+/**
+ * Applies a shimmer effect to a composable for loading states.
+ *
+ * @param size The size of the shimmer effect.
+ * @return The modified [Modifier] with the shimmer effect.
+ */
 private fun Modifier.shimmerEffect(size: Dp): Modifier = composed {
   val sizePx = with(LocalDensity.current) { size.toPx() }
   val transition = rememberInfiniteTransition(label = "shimmer")

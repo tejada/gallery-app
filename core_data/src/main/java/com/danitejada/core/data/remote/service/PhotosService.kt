@@ -14,8 +14,20 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import javax.inject.Inject
 
+/**
+ * Implementation of [PhotosApi] using Ktor for making HTTP requests to the Pexels API.
+ */
 class PhotosService @Inject constructor(private val httpClient: HttpClient) : PhotosApi {
 
+  /**
+   * Fetches a paginated list of curated photos from the Pexels API.
+   *
+   * @param apiKey The API key for authentication.
+   * @param page The page number to fetch, or null for the first page.
+   * @param perPage The number of photos per page, or null for default.
+   * @return A [PhotosResponseDto] containing the list of photos and pagination metadata.
+   * @throws Exception If the API call fails (e.g., network error, invalid API key).
+   */
   override suspend fun getPhotos(apiKey: String, page: Int?, perPage: Int?): PhotosResponseDto {
     val response: HttpResponse = httpClient.get("v1/curated") {
       headers {
@@ -32,6 +44,14 @@ class PhotosService @Inject constructor(private val httpClient: HttpClient) : Ph
     }
   }
 
+  /**
+   * Fetches details of a specific photo by its ID from the Pexels API.
+   *
+   * @param apiKey The API key for authentication.
+   * @param id The ID of the photo to retrieve.
+   * @return A [PhotoDto] containing the photo details.
+   * @throws Exception If the API call fails (e.g., network error, invalid API key).
+   */
   override suspend fun getPhoto(apiKey: String, id: Int): PhotoDto {
     val response: HttpResponse = httpClient.get("v1/photos/$id") {
       headers {
@@ -47,8 +67,10 @@ class PhotosService @Inject constructor(private val httpClient: HttpClient) : Ph
   }
 
   /**
-   * Attempts to parse the body of a failed response into an [ErrorResponse]
-   * to create a more specific exception message.
+   * Parses the body of a failed API response into an [ErrorResponse].
+   *
+   * @param response The failed [HttpResponse] to parse.
+   * @return An [Exception] with a detailed error message.
    */
   private suspend fun parseError(response: HttpResponse): Exception {
     return try {

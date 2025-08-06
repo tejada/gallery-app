@@ -60,6 +60,13 @@ import com.danitejada.common.R
 import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.ui.image.AsyncImageWithPlaceholder
 
+/**
+ * Composable function that renders the photo detail screen.
+ *
+ * @param photoId The ID of the photo to display.
+ * @param viewModel The ViewModel for managing photo detail data.
+ * @param onBackClick Callback invoked when the back button is clicked.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoDetailScreen(
@@ -111,6 +118,14 @@ fun PhotoDetailScreen(
   }
 }
 
+/**
+ * Renders the content of the photo detail screen based on the UI state.
+ *
+ * @param uiState The current UI state of the photo detail screen.
+ * @param uriHandler The handler for opening URLs in a browser.
+ * @param onRetry Callback invoked to retry loading the photo.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun PhotoDetailContent(
   uiState: PhotoDetailUiState,
@@ -145,6 +160,11 @@ private fun PhotoDetailContent(
   }
 }
 
+/**
+ * Renders the loading state for the photo detail screen.
+ *
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun LoadingState(
   modifier: Modifier = Modifier
@@ -166,6 +186,13 @@ private fun LoadingState(
   }
 }
 
+/**
+ * Renders the error state for the photo detail screen.
+ *
+ * @param message The error message to display, if any.
+ * @param onRetry Callback invoked to retry loading the photo.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun ErrorState(
   message: String?,
@@ -207,6 +234,13 @@ private fun ErrorState(
   }
 }
 
+/**
+ * Renders the success state for the photo detail screen.
+ *
+ * @param photo The photo to display, if available.
+ * @param uriHandler The handler for opening URLs in a browser.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun PhotoDetailSuccess(
   photo: Photo?,
@@ -240,6 +274,13 @@ private fun PhotoDetailSuccess(
   }
 }
 
+/**
+ * Renders the photo section of the detail screen.
+ *
+ * @param photo The photo to display.
+ * @param aspectRatio The aspect ratio of the photo.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun PhotoSection(
   photo: Photo,
@@ -275,6 +316,13 @@ private fun PhotoSection(
   }
 }
 
+/**
+ * Renders the photo section of the detail screen.
+ *
+ * @param photo The photo to display.
+ * @param aspectRatio The aspect ratio of the photo.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 private fun PhotoDetailsSection(
   photo: Photo,
@@ -346,6 +394,14 @@ private fun PhotoDetailsSection(
   }
 }
 
+/**
+ * Renders a card displaying a single detail (e.g., photographer or description).
+ *
+ * @param title The title of the detail.
+ * @param value The value of the detail.
+ * @param modifier The modifier for the composable.
+ * @param icon An optional icon to display next to the detail.
+ */
 @Composable
 private fun DetailCard(
   title: String,
@@ -395,6 +451,13 @@ private fun DetailCard(
   }
 }
 
+/**
+ * Calculates the aspect ratio of the photo based on its width and height.
+ *
+ * @param width The width of the photo, if available.
+ * @param height The height of the photo, if available.
+ * @return The aspect ratio as a float, or 1f if width or height is invalid.
+ */
 private fun calculateAspectRatio(width: Int?, height: Int?): Float {
   return if (width != null && height != null && width > 0 && height > 0) {
     width.toFloat() / height.toFloat()

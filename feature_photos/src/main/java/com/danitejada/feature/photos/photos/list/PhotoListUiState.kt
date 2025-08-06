@@ -2,11 +2,24 @@ package com.danitejada.feature.photos.photos.list
 
 import com.danitejada.core.domain.models.Photo
 
+/**
+ * Represents the UI state for the photo list screen.
+ */
 sealed interface PhotoListUiState {
-  // The screen is loading for the first time
+
+  /**
+   * Indicates the screen is in a loading state while fetching the initial photo list.
+   */
   data object Loading : PhotoListUiState
 
-  // The screen has successfully loaded a list of photos
+  /**
+   * Indicates the photo list was successfully loaded.
+   *
+   * @param photos The list of photos to display.
+   * @param hasNextPage Indicates if there are more pages of photos to load.
+   * @param isLoadingMore Indicates if additional photos are being loaded.
+   * @param isRefreshing Indicates if the photo list is being refreshed.
+   */
   data class Success(
     val photos: List<Photo>,
     val hasNextPage: Boolean,
@@ -14,9 +27,15 @@ sealed interface PhotoListUiState {
     val isRefreshing: Boolean = false
   ) : PhotoListUiState
 
-  // The API call was successful, but there are no photos to display
+  /**
+   * Indicates the API call was successful, but there are no photos to display.
+   */
   data object Empty : PhotoListUiState
 
-  // An error occurred while fetching data
+  /**
+   * Indicates an error occurred while fetching the photo list.
+   *
+   * @param message The error message to display.
+   */
   data class Error(val message: String) : PhotoListUiState
 }

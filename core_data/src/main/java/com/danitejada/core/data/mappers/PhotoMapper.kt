@@ -9,9 +9,17 @@ import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.domain.models.Photos
 import javax.inject.Inject
 
+/**
+ * Mapper class for converting between network DTOs, database entities, and domain models for photos.
+ */
 class PhotoMapper @Inject constructor() {
 
-  // Main function to map the entire network response.
+  /**
+   * Maps a network response DTO to a domain model.
+   *
+   * @param dto The [PhotosResponseDto] to map.
+   * @return A [Photos] domain model containing the list of photos and pagination metadata.
+   */
   fun mapDtoToDomain(dto: PhotosResponseDto): Photos {
     return Photos(
       photos = dto.photos.map { mapDtoToDomain(it) },
@@ -22,7 +30,12 @@ class PhotoMapper @Inject constructor() {
     )
   }
 
-  // Maps a single network DTO to the domain model.
+  /**
+   * Maps a single photo DTO to a domain model.
+   *
+   * @param dto The [PhotoDto] to map.
+   * @return A [Photo] domain model.
+   */
   fun mapDtoToDomain(dto: PhotoDto): Photo {
     return Photo(
       id = dto.id,
@@ -42,7 +55,12 @@ class PhotoMapper @Inject constructor() {
     )
   }
 
-  // Maps a database entity to the domain model.
+  /**
+   * Maps a database entity to a domain model.
+   *
+   * @param entity The [PhotoEntity] to map.
+   * @return A [Photo] domain model.
+   */
   fun mapEntityToDomain(entity: PhotoEntity): Photo {
     return Photo(
       id = entity.id,
@@ -62,7 +80,12 @@ class PhotoMapper @Inject constructor() {
     )
   }
 
-  // Maps a domain model to a database entity.
+  /**
+   * Maps a database entity to a domain model.
+   *
+   * @param entity The [PhotoEntity] to map.
+   * @return A [Photo] domain model.
+   */
   fun mapDomainToEntity(domain: Photo): PhotoEntity {
     return PhotoEntity(
       id = domain.id,
@@ -81,8 +104,10 @@ class PhotoMapper @Inject constructor() {
   }
 
   /**
-   * Private helper function to parse a color string.
-   * This is now the single source of truth for color conversion logic.
+   * Parses a color string to a Compose [Color] object.
+   *
+   * @param colorString The hex color string to parse (e.g., "#FF0000").
+   * @return The parsed [Color], or [Color.LightGray] if parsing fails or the input is null.
    */
   private fun parseAvgColor(colorString: String?): Color {
     val defaultColor = Color.LightGray

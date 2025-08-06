@@ -12,6 +12,15 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 
+/**
+ * Composable function that renders an image with a placeholder while loading.
+ *
+ * @param imageUrl The URL of the image to load.
+ * @param placeholder The painter to display as a placeholder while the image is loading.
+ * @param contentDescription The accessibility description for the image, or null if decorative.
+ * @param contentScale The scale to apply to the image content.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 fun AsyncImageWithPlaceholder(
   imageUrl: String?,

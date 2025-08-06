@@ -10,6 +10,11 @@ import com.danitejada.feature.photos.photos.detail.PhotoDetailScreen
 import com.danitejada.feature.photos.photos.list.PhotoListScreen
 import com.danitejada.feature.settings.apikey.ApiKeyScreen
 
+/**
+ * Sets up the main navigation graph of the app using Jetpack Navigation and Hilt.
+ *
+ * @param startDestination The initial destination to launch (e.g., [ApiKeyDestination] or [PhotoListDestination]).
+ */
 @Composable
 fun AppNavigation(startDestination: Any) {
   val navController = rememberNavController()

@@ -43,6 +43,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.danitejada.common.R
 
+/**
+ * Composable function that renders the API key input screen.
+ *
+ * @param viewModel The ViewModel for managing API key logic.
+ * @param onApiKeySaved Callback invoked when the API key is successfully saved.
+ * @param onBackClick Callback invoked when the back button is clicked.
+ * @param navController The navigation controller for handling navigation.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApiKeyScreen(
@@ -54,13 +62,6 @@ fun ApiKeyScreen(
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val canNavigateBack = navController.previousBackStackEntry != null
   var apiKeyInput by remember { mutableStateOf("") }
-
-  val scrollState = rememberScrollState()
-  val focusManager = LocalFocusManager.current
-  val keyboardController = LocalSoftwareKeyboardController.current
-
-  val isInputValid = apiKeyInput.isNotBlank()
-  val isReadyToSubmit = uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error
 
   // Load the saved API key when the screen starts
   LaunchedEffect(Unit) {
@@ -81,30 +82,44 @@ fun ApiKeyScreen(
     }
   }
 
+  ApiKeyContent(
+    uiState = uiState,
+    apiKeyInput = apiKeyInput,
+    onApiKeyInputChange = { apiKeyInput = it },
+    onSaveClick = { viewModel.saveApiKey(apiKeyInput) },
+    canNavigateBack = canNavigateBack,
+    onBackClick = onBackClick
+  )
+}
+
+/**
+ * Renders the main content of the API key input screen, including the text field and save button.
+ *
+ * @param uiState The current UI state of the API key screen.
+ * @param apiKeyInput The current value of the API key input field.
+ * @param onApiKeyInputChange Callback invoked when the API key input changes.
+ * @param onSaveClick Callback invoked when the save button is clicked.
+ * @param canNavigateBack Whether the back button should be displayed.
+ * @param onBackClick Callback invoked when the back button is clicked.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ApiKeyContent(
+  uiState: ApiKeyUiState,
+  apiKeyInput: String,
+  onApiKeyInputChange: (String) -> Unit,
+  onSaveClick: () -> Unit,
+  canNavigateBack: Boolean,
+  onBackClick: () -> Unit
+) {
+  val focusManager = LocalFocusManager.current
+  val keyboardController = LocalSoftwareKeyboardController.current
+
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            text = stringResource(R.string.settings_screen_title),
-            style = MaterialTheme.typography.headlineSmall
-          )
-        },
-        navigationIcon = {
-          if (canNavigateBack) {
-            val backDescription = stringResource(R.string.content_description_navigate_back)
-            IconButton(
-              onClick = onBackClick,
-              modifier = Modifier.semantics {
-                contentDescription = backDescription
-              }) {
-              Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = null
-              )
-            }
-          }
-        }
+      ApiKeyTopAppBar(
+        canNavigateBack = canNavigateBack,
+        onBackClick = onBackClick
       )
     }
   ) { paddingValues ->
@@ -113,7 +128,7 @@ fun ApiKeyScreen(
         .padding(paddingValues)
         .fillMaxSize()
         .padding(16.dp)
-        .verticalScroll(scrollState)
+        .verticalScroll(rememberScrollState())
         .imePadding(),
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.Center
@@ -124,57 +139,142 @@ fun ApiKeyScreen(
         modifier = Modifier.padding(bottom = 32.dp)
       )
 
-      OutlinedTextField(
+      ApiKeyTextField(
         value = apiKeyInput,
-        onValueChange = { apiKeyInput = it },
-        label = { Text(stringResource(R.string.settings_api_key_label)) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-          imeAction = ImeAction.Done,
-          keyboardType = KeyboardType.Text
-        ),
-        keyboardActions = KeyboardActions(
-          onDone = {
-            if (isInputValid && isReadyToSubmit) {
-              viewModel.saveApiKey(apiKeyInput)
-              focusManager.clearFocus()
-              keyboardController?.hide()
-            }
-          }
-        ),
-        isError = uiState is ApiKeyUiState.Error,
-        supportingText = {
-          if (uiState is ApiKeyUiState.Error) {
-            Text(
-              text = stringResource((uiState as ApiKeyUiState.Error).messageResId),
-              color = MaterialTheme.colorScheme.error
-            )
-          }
-        },
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(bottom = 16.dp)
+        onValueChange = onApiKeyInputChange,
+        uiState = uiState,
+        onDone = {
+          focusManager.clearFocus()
+          keyboardController?.hide()
+          onSaveClick()
+        }
       )
 
-      Button(
+      SaveButton(
+        uiState = uiState,
+        isInputValid = apiKeyInput.isNotBlank(),
         onClick = {
           focusManager.clearFocus()
           keyboardController?.hide()
-          viewModel.saveApiKey(apiKeyInput)
-        },
-        enabled = isInputValid && isReadyToSubmit,
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        if (uiState is ApiKeyUiState.Loading) {
-          CircularProgressIndicator(
-            modifier = Modifier.size(24.dp),
-            color = MaterialTheme.colorScheme.onPrimary,
-            strokeWidth = 2.dp
+          onSaveClick()
+        }
+      )
+    }
+  }
+}
+
+/**
+ * Renders the top app bar for the API key input screen.
+ *
+ * @param canNavigateBack Whether the back button should be displayed.
+ * @param onBackClick Callback invoked when the back button is clicked.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ApiKeyTopAppBar(
+  canNavigateBack: Boolean,
+  onBackClick: () -> Unit
+) {
+  TopAppBar(
+    title = {
+      Text(
+        text = stringResource(R.string.settings_screen_title),
+        style = MaterialTheme.typography.headlineSmall
+      )
+    },
+    navigationIcon = {
+      if (canNavigateBack) {
+        val backDescription = stringResource(R.string.content_description_navigate_back)
+        IconButton(
+          onClick = onBackClick,
+          modifier = Modifier.semantics {
+            contentDescription = backDescription
+          }) {
+          Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = null
           )
-        } else {
-          Text(stringResource(R.string.settings_button_save_key))
         }
       }
+    }
+  )
+}
+
+/**
+ * Renders the text field for entering the API key.
+ *
+ * @param value The current value of the API key input.
+ * @param onValueChange Triggers when the user updates the API key input.
+ * @param uiState The current UI state of the API key screen.
+ * @param onDone Callback invoked when the done action is triggered on the keyboard.
+ */
+@Composable
+fun ApiKeyTextField(
+  value: String,
+  onValueChange: (String) -> Unit,
+  uiState: ApiKeyUiState,
+  onDone: () -> Unit
+) {
+  val isError = uiState is ApiKeyUiState.Error
+  val isReadyToSubmit = uiState is ApiKeyUiState.Idle || isError
+
+  OutlinedTextField(
+    value = value,
+    onValueChange = onValueChange,
+    label = { Text(stringResource(R.string.settings_api_key_label)) },
+    singleLine = true,
+    keyboardOptions = KeyboardOptions(
+      imeAction = ImeAction.Done,
+      keyboardType = KeyboardType.Text
+    ),
+    keyboardActions = KeyboardActions(onDone = {
+      if (value.isNotBlank() && isReadyToSubmit) {
+        onDone()
+      }
+    }),
+    isError = isError,
+    supportingText = {
+      if (uiState is ApiKeyUiState.Error) {
+        Text(
+          text = stringResource(uiState.messageResId),
+          color = MaterialTheme.colorScheme.error
+        )
+      }
+    },
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(bottom = 16.dp)
+  )
+}
+
+/**
+ * Renders the save button for submitting the API key.
+ *
+ * @param uiState The current UI state of the API key screen.
+ * @param isInputValid Indicates whether the input field has content and is ready to submit.
+ * @param onClick Callback invoked when the save button is clicked.
+ */
+@Composable
+fun SaveButton(
+  uiState: ApiKeyUiState,
+  isInputValid: Boolean,
+  onClick: () -> Unit
+) {
+  val isReadyToSubmit = uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error
+
+  Button(
+    onClick = onClick,
+    enabled = isInputValid && isReadyToSubmit,
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    if (uiState is ApiKeyUiState.Loading) {
+      CircularProgressIndicator(
+        modifier = Modifier.size(24.dp),
+        color = MaterialTheme.colorScheme.onPrimary,
+        strokeWidth = 2.dp
+      )
+    } else {
+      Text(stringResource(R.string.settings_button_save_key))
     }
   }
 }

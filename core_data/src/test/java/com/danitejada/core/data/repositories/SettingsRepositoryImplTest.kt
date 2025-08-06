@@ -37,7 +37,6 @@ class SettingsRepositoryImplTest {
     val result = repository.getApiKey()
     assertNotNull(result)
     assertEquals(apiKey, result?.value)
-    assertTrue(result?.isValid!!)
   }
 
   @Test

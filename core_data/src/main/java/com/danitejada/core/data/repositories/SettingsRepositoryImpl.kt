@@ -9,11 +9,20 @@ import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Implementation of [SettingsRepository] for managing settings data.
+ */
 @Singleton
 class SettingsRepositoryImpl @Inject constructor(
   private val securePreferencesDataSource: SecurePreferencesDataSource
 ) : SettingsRepository {
 
+  /**
+   * Seeds an initial API key if none is set.
+   *
+   * @throws SecurityException If there is an issue with encryption or secure storage.
+   * @throws java.io.IOException If there is an issue accessing the storage.
+   */
   override suspend fun seedInitialApiKeyIfNeeded() {
     val isSeedComplete = securePreferencesDataSource.isInitialSeedComplete().first()
     if (!isSeedComplete) {
@@ -26,6 +35,13 @@ class SettingsRepositoryImpl @Inject constructor(
     }
   }
 
+  /**
+   * Saves the provided API key.
+   *
+   * @param apiKey The API key to save.
+   * @throws SecurityException If there is an issue with encryption or secure storage.
+   * @throws java.io.IOException If there is an issue accessing the storage.
+   */
   override suspend fun saveApiKey(apiKey: String) {
     if (apiKey.isBlank()) {
       throw IllegalArgumentException("API key cannot be blank")
@@ -41,30 +57,37 @@ class SettingsRepositoryImpl @Inject constructor(
     }
   }
 
+  /**
+   * Retrieves the stored API key.
+   *
+   * @return The [ApiKey] if set, or null if not available.
+   * @throws java.io.IOException If there is an issue accessing the storage.
+   */
   override suspend fun getApiKey(): ApiKey? {
     return try {
       val apiKeyValue = securePreferencesDataSource.getApiKey().first()
-      apiKeyValue?.let {
-        ApiKey(
-          value = it,
-          isValid = it.isNotBlank()
-        )
-      }
+      apiKeyValue?.let { ApiKey(it) }
     } catch (e: Exception) {
       // If we can't decrypt or retrieve the key, return null
       null
     }
   }
 
+  /**
+   * Checks if the initial API key seeding is complete.
+   *
+   * @return A [Flow] emitting true if the initial seed is complete, false otherwise.
+   */
   override fun isInitialSeedComplete(): Flow<Boolean> {
     return securePreferencesDataSource.isInitialSeedComplete()
   }
 
+  /**
+   * Marks the initial API key seeding as complete.
+   *
+   * @throws java.io.IOException If there is an issue accessing the storage.
+   */
   override suspend fun setInitialSeedComplete() {
     securePreferencesDataSource.setInitialSeedComplete()
-  }
-
-  suspend fun clearApiKey() {
-    securePreferencesDataSource.clearApiKey()
   }
 }
