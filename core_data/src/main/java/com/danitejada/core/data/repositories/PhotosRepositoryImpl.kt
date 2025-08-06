@@ -52,21 +52,18 @@ class PhotosRepositoryImpl @Inject constructor(
    * @return A [Flow] emitting a [NetworkResult] containing the [Photo] or an error.
    */
   override fun getPhotoDetail(photoId: Int): Flow<NetworkResult<Photo>> = flow {
-    // Emit cached data first, if available
     val cachedPhotoEntity = dao.getPhotoById(photoId)
     try {
       emit(NetworkResult.Loading)
-
-      // Emit cached data first, if available
-      if (cachedPhotoEntity != null) {
-        emit(NetworkResult.Success(mapper.mapEntityToDomain(cachedPhotoEntity)))
-      }
 
       // Fetch from network to get the latest data
       val apiKey = settingsRepository.getApiKey()?.value
       if (apiKey.isNullOrBlank()) {
         if (cachedPhotoEntity == null) {
           emit(NetworkResult.Error("API key not found and no cached data available."))
+        } else {
+          // If API key is null/blank but cached data exists, we've already emitted Loading.
+          emit(NetworkResult.Success(mapper.mapEntityToDomain(cachedPhotoEntity)))
         }
         return@flow // Stop if no API key and we've already emitted cache
       }
@@ -81,13 +78,17 @@ class PhotosRepositoryImpl @Inject constructor(
       val updatedPhotoEntity = dao.getPhotoById(photoId)
       if (updatedPhotoEntity != null) {
         emit(NetworkResult.Success(mapper.mapEntityToDomain(updatedPhotoEntity)))
+      } else {
+        // Fallback: if re-fetching from DB somehow fails, use the fresh object directly.
+        emit(NetworkResult.Success(freshPhoto))
       }
-
     } catch (e: Exception) {
-      // If the network fails, the UI still has the cached version.
-      // Only emit an error if there's no cached data at all.
+      // Network fetch failed.
       if (cachedPhotoEntity == null) {
         emit(NetworkResult.Error(e.message ?: "Unknown error occurred"))
+      } else {
+        // If network failed but cached data exists, emit the cached data as success.
+        emit(NetworkResult.Success(mapper.mapEntityToDomain(cachedPhotoEntity)))
       }
     }
   }

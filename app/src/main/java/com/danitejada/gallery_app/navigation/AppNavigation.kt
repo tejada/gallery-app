@@ -16,7 +16,7 @@ import com.danitejada.feature.settings.apikey.ApiKeyScreen
  * @param startDestination The initial destination to launch (e.g., [ApiKeyDestination] or [PhotoListDestination]).
  */
 @Composable
-fun AppNavigation(startDestination: Any) {
+fun AppNavigation(startDestination: AppDestination) {
   val navController = rememberNavController()
 
   NavHost(

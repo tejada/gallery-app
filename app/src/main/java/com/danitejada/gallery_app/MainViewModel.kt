@@ -6,6 +6,7 @@ import com.danitejada.core.domain.usecases.settings.GetApiKeyUseCase
 import com.danitejada.core.domain.usecases.settings.SeedInitialApiKeyUseCase
 import com.danitejada.gallery_app.navigation.ApiKeyDestination
 import com.danitejada.gallery_app.navigation.PhotoListDestination
+import com.danitejada.gallery_app.navigation.AppDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,7 +52,7 @@ class MainViewModel @Inject constructor(
    *
    * @return [PhotoListDestination] if an API key exists; [ApiKeyDestination] otherwise.
    */
-  private suspend fun resolveStartDestination(): Any {
+  private suspend fun resolveStartDestination(): AppDestination {
     return if (getApiKeyUseCase()?.value?.isNotBlank() == true) PhotoListDestination else ApiKeyDestination
   }
 }

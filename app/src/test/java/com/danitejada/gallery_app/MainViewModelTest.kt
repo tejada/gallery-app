@@ -40,7 +40,7 @@ class MainViewModelTest {
 
   @Test
   fun `when api key exists, uiState is Ready with PhotoListDestination`() = runTest {
-    whenever(getApiKeyUseCase.invoke()).thenReturn(ApiKey("validApiKey", true))
+    whenever(getApiKeyUseCase.invoke()).thenReturn(ApiKey("validApiKey"))
     viewModel = MainViewModel(seedInitialApiKeyUseCase, getApiKeyUseCase)
 
     viewModel.uiState.test {

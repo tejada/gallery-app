@@ -60,19 +60,19 @@ class PhotosRepositoryImplTest {
   }
 
   /**
-   * Verifies that `getPhotoDetail` with cached data emits both cached and fresh data.
-   * Expected flow: Loading -> Cached Success -> Fresh Success
+   * Verifies that `getPhotoDetail` with cached data and successful network call returns only fresh data.
+   * Expected flow: Loading -> Fresh Success
    */
   @Test
-  fun `getPhotoDetail with cached data and successful network call returns both cached and fresh data`() =
+  fun `getPhotoDetail with cached data and successful network call returns fresh data only`() =
     runTest {
       // Given
       coEvery { dao.getPhotoById(testPhotoId) } returnsMany listOf(testPhotoEntity, testPhotoEntity)
       coEvery { settingsRepository.getApiKey() } returns testApiKeyModel
       coEvery { api.getPhoto(testApiKey, testPhotoId) } returns testPhotoDto
-      every { mapper.mapEntityToDomain(testPhotoEntity) } returns testPhoto
       every { mapper.mapDtoToDomain(testPhotoDto) } returns testPhoto
       every { mapper.mapDomainToEntity(testPhoto) } returns testPhotoEntity
+      every { mapper.mapEntityToDomain(testPhotoEntity) } returns testPhoto
       coEvery { dao.insertPhotos(listOf(testPhotoEntity)) } returns Unit
 
       // When & Then
@@ -80,18 +80,8 @@ class PhotosRepositoryImplTest {
         val loading = awaitItem()
         assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
 
-        val cachedResult = awaitItem()
-        assertTrue(
-          "Second emission should be cached Success",
-          cachedResult is NetworkResult.Success
-        )
-        assertEquals(
-          "Cached data should match expected photo", testPhoto, (cachedResult as
-              NetworkResult.Success).data
-        )
-
         val freshResult = awaitItem()
-        assertTrue("Third emission should be fresh Success", freshResult is NetworkResult.Success)
+        assertTrue("Second emission should be fresh Success", freshResult is NetworkResult.Success)
         assertEquals(
           "Fresh data should match expected photo", testPhoto, (freshResult as
               NetworkResult.Success).data
@@ -108,8 +98,8 @@ class PhotosRepositoryImplTest {
     }
 
   /**
-   * Verifies that `getPhoto` without cached data only emits fresh data after network call.
-   * Expected flow: Loading -> Fresh Success
+   * Verifies that `getPhotoDetail` with no cached data and successful network call returns fresh data only.
+   * This test case remains mostly the same, as its original expectation aligns with the new strategy.
    */
   @Test
   fun `getPhotoDetail with no cached data and successful network call returns fresh data only`() =
