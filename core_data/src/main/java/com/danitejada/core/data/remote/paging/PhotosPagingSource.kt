@@ -7,7 +7,6 @@ import com.danitejada.core.data.mappers.PhotoMapper
 import com.danitejada.core.data.remote.api.PhotosApi
 import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.domain.repositories.SettingsRepository
-import java.io.IOException
 
 class PhotosPagingSource(
   private val photosApi: PhotosApi,

@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.apply
 import java.util.Properties
 import kotlin.apply
 

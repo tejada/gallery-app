@@ -1,7 +1,8 @@
 package com.danitejada.gallery_app
 
 import app.cash.turbine.test
-import com.danitejada.core.domain.usecases.settings.HasApiKeyUseCase
+import com.danitejada.core.domain.models.ApiKey
+import com.danitejada.core.domain.usecases.settings.GetApiKeyUseCase
 import com.danitejada.core.domain.usecases.settings.SeedInitialApiKeyUseCase
 import com.danitejada.gallery_app.navigation.ApiKeyDestination
 import com.danitejada.gallery_app.navigation.PhotoListDestination
@@ -24,7 +25,7 @@ class MainViewModelTest {
 
   private lateinit var viewModel: MainViewModel
   private val seedInitialApiKeyUseCase: SeedInitialApiKeyUseCase = mock()
-  private val hasApiKeyUseCase: HasApiKeyUseCase = mock()
+  private val getApiKeyUseCase: GetApiKeyUseCase = mock()
   private val testDispatcher = StandardTestDispatcher()
 
   @Before
@@ -39,8 +40,8 @@ class MainViewModelTest {
 
   @Test
   fun `when api key exists, uiState is Ready with PhotoListDestination`() = runTest {
-    whenever(hasApiKeyUseCase.invoke()).thenReturn(true)
-    viewModel = MainViewModel(seedInitialApiKeyUseCase, hasApiKeyUseCase)
+    whenever(getApiKeyUseCase.invoke()).thenReturn(ApiKey("validApiKey", true))
+    viewModel = MainViewModel(seedInitialApiKeyUseCase, getApiKeyUseCase)
 
     viewModel.uiState.test {
       val readyState = awaitItem()
@@ -51,8 +52,8 @@ class MainViewModelTest {
 
   @Test
   fun `when api key does not exist, uiState is Ready with ApiKeyDestination`() = runTest {
-    whenever(hasApiKeyUseCase.invoke()).thenReturn(false)
-    viewModel = MainViewModel(seedInitialApiKeyUseCase, hasApiKeyUseCase)
+    whenever(getApiKeyUseCase.invoke()).thenReturn(null)
+    viewModel = MainViewModel(seedInitialApiKeyUseCase, getApiKeyUseCase)
 
     viewModel.uiState.test {
       val readyState = awaitItem()

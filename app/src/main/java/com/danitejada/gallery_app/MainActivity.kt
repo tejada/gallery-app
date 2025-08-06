@@ -42,7 +42,6 @@ class MainActivity : ComponentActivity() {
     }
   }
 
-
   @Composable
   private fun RenderUiState(uiState: MainUiState) {
     when (uiState) {

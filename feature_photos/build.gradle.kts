@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+  implementation(project(":common_resources"))
   implementation(project(":core_domain"))
   implementation(project(":core_ui"))
 
@@ -49,6 +50,8 @@ dependencies {
   implementation(libs.androidx.material3)
   implementation(libs.androidx.view.model)
   implementation(libs.androidx.lifecycle.runtimeCompose)
+  implementation(libs.androidx.glance.appwidget)
+  implementation(libs.androidx.material.icons.extended)
 
   // Coil
   implementation(libs.coil.compose)

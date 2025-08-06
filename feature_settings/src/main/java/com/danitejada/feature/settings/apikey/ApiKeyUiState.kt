@@ -16,5 +16,5 @@ sealed interface ApiKeyUiState {
   data class Error(@StringRes val messageResId: Int) : ApiKeyUiState
 
   /** Default idle state */
-  data object Idle : ApiKeyUiState
+  data class Idle(val apiKey: String) : ApiKeyUiState
 }

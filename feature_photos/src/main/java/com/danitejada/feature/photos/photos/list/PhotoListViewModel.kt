@@ -12,7 +12,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PhotoListViewModel @Inject constructor(
-  useCase: GetPhotosUseCase
+  getPhotosUseCase: GetPhotosUseCase
 ) : ViewModel() {
-  val photos: Flow<PagingData<Photo>> = useCase().cachedIn(viewModelScope)
+  val photos: Flow<PagingData<Photo>> = getPhotosUseCase().cachedIn(viewModelScope)
 }
