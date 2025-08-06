@@ -52,18 +52,19 @@ class PhotosRepositoryImpl @Inject constructor(
    * @return A [Flow] emitting a [NetworkResult] containing the [Photo] or an error.
    */
   override fun getPhotoDetail(photoId: Int): Flow<NetworkResult<Photo>> = flow {
-    emit(NetworkResult.Loading)
-
     // Emit cached data first, if available
     val cachedPhotoEntity = dao.getPhotoById(photoId)
-    if (cachedPhotoEntity != null) {
-      emit(NetworkResult.Success(mapper.mapEntityToDomain(cachedPhotoEntity)))
-    }
-
-    // Fetch from network to get the latest data
     try {
+      emit(NetworkResult.Loading)
+
+      // Emit cached data first, if available
+      if (cachedPhotoEntity != null) {
+        emit(NetworkResult.Success(mapper.mapEntityToDomain(cachedPhotoEntity)))
+      }
+
+      // Fetch from network to get the latest data
       val apiKey = settingsRepository.getApiKey()?.value
-      if (apiKey == null) {
+      if (apiKey.isNullOrBlank()) {
         if (cachedPhotoEntity == null) {
           emit(NetworkResult.Error("API key not found and no cached data available."))
         }

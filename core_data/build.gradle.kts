@@ -87,6 +87,7 @@ dependencies {
   implementation(libs.security.crypto)
 
   // Test
+  testImplementation(libs.mockk.android)
   testImplementation(libs.junit)
   testImplementation(libs.mockito.kotlin)
   testImplementation(libs.coroutines.test)

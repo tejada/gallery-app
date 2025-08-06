@@ -1,5 +1,6 @@
 package com.danitejada.core.data.repositories
 
+import androidx.paging.PagingData
 import app.cash.turbine.test
 import com.danitejada.core.core.network.NetworkResult
 import com.danitejada.core.data.local.dao.PhotoDao
@@ -8,117 +9,274 @@ import com.danitejada.core.data.mappers.PhotoMapper
 import com.danitejada.core.data.remote.api.PhotosApi
 import com.danitejada.core.data.remote.dto.PhotoDto
 import com.danitejada.core.domain.models.ApiKey
+import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.domain.repositories.SettingsRepository
-import kotlinx.coroutines.runBlocking
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
 
+/**
+ * Unit tests for [PhotosRepositoryImpl].
+ *
+ * Verifies the repository's cache-first strategy, proper interaction with
+ * dependencies ([PhotosApi], [PhotoDao], [PhotoMapper], [SettingsRepository]),
+ * and correct handling of network failures with graceful fallback to cached data.
+ */
 class PhotosRepositoryImplTest {
 
-  private val api: PhotosApi = mock()
-  private val dao: PhotoDao = mock()
-  private val mapper: PhotoMapper = PhotoMapper() // Using real mapper
-  private val settingsRepository: SettingsRepository = mock()
+  private lateinit var repository: PhotosRepositoryImpl
+  private val api: PhotosApi = mockk()
+  private val dao: PhotoDao = mockk()
+  private val mapper: PhotoMapper = mockk()
+  private val settingsRepository: SettingsRepository = mockk()
 
-  private val repository = PhotosRepositoryImpl(api, dao, mapper, settingsRepository)
+  // Test data
+  private val testApiKey = "test_api_key"
+  private val testPhotoId = 123
+  private val testPhotoDto: PhotoDto = mockk()
+  private val testPhotoEntity: PhotoEntity = mockk()
+  private val testPhoto: Photo = mockk()
+  private val testApiKeyModel = ApiKey(value = testApiKey)
 
-  private val photoId = 123
-  private val cachedEntity = PhotoEntity(photoId, 100, 100, "url", "Cached Dani", "url", 1L, "#FFFFFF", "thumb", "tiny", "large", "alt")
-  private val networkDto = PhotoDto(id = photoId, width = 200, height = 200, photographer = "Network Dani")
-  private val freshEntity = PhotoEntity(photoId, 200, 200, null, "Network Dani", null, null, null, null, null, null, null)
+  @Before
+  fun setup() {
+    repository = PhotosRepositoryImpl(api, dao, mapper, settingsRepository)
+  }
 
+  /**
+   * Verifies that `getPhotos` returns a proper Flow of PagingData.
+   */
   @Test
-  fun `getPhoto emits cache first, then fresh network data`() = runBlocking {
-    // Given the database has a cached version
-    whenever(dao.getPhotoById(photoId)).thenReturn(cachedEntity, freshEntity) // First call returns cache, second returns fresh
-    // And the network will provide a fresh version
-    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
-    whenever(api.getPhoto("valid_key", photoId)).thenReturn(networkDto)
+  fun `getPhotos returns PagingData flow`() {
+    val result = repository.getPhotos()
+    assertTrue(result is Flow<PagingData<Photo>>)
+  }
 
-    // When getPhoto is called
-    repository.getPhotoDetail(photoId).test {
-      // Then it emits Loading first
-      assertEquals(NetworkResult.Loading, awaitItem())
+  /**
+   * Verifies that `getPhotoDetail` with cached data emits both cached and fresh data.
+   * Expected flow: Loading -> Cached Success -> Fresh Success
+   */
+  @Test
+  fun `getPhotoDetail with cached data and successful network call returns both cached and fresh data`() =
+    runTest {
+      // Given
+      coEvery { dao.getPhotoById(testPhotoId) } returnsMany listOf(testPhotoEntity, testPhotoEntity)
+      coEvery { settingsRepository.getApiKey() } returns testApiKeyModel
+      coEvery { api.getPhoto(testApiKey, testPhotoId) } returns testPhotoDto
+      every { mapper.mapEntityToDomain(testPhotoEntity) } returns testPhoto
+      every { mapper.mapDtoToDomain(testPhotoDto) } returns testPhoto
+      every { mapper.mapDomainToEntity(testPhoto) } returns testPhotoEntity
+      coEvery { dao.insertPhotos(listOf(testPhotoEntity)) } returns Unit
 
-      // Then it emits the cached data
-      val cachedResult = awaitItem() as NetworkResult.Success
-      assertEquals("Cached Dani", cachedResult.data.photographer)
+      // When & Then
+      repository.getPhotoDetail(testPhotoId).test {
+        val loading = awaitItem()
+        assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
 
-      // Then it emits the fresh network data
-      val freshResult = awaitItem() as NetworkResult.Success
-      assertEquals("Network Dani", freshResult.data.photographer)
+        val cachedResult = awaitItem()
+        assertTrue(
+          "Second emission should be cached Success",
+          cachedResult is NetworkResult.Success
+        )
+        assertEquals(
+          "Cached data should match expected photo", testPhoto, (cachedResult as
+              NetworkResult.Success).data
+        )
 
-      // Ensure we inserted the fresh data into the database
-      verify(dao).insertPhotos(listOf(mapper.mapDomainToEntity(mapper.mapDtoToDomain(networkDto))))
+        val freshResult = awaitItem()
+        assertTrue("Third emission should be fresh Success", freshResult is NetworkResult.Success)
+        assertEquals(
+          "Fresh data should match expected photo", testPhoto, (freshResult as
+              NetworkResult.Success).data
+        )
+
+        awaitComplete()
+      }
+
+      // Verify all expected interactions occurred
+      coVerify { dao.getPhotoById(testPhotoId) }
+      coVerify { settingsRepository.getApiKey() }
+      coVerify { api.getPhoto(testApiKey, testPhotoId) }
+      coVerify { dao.insertPhotos(listOf(testPhotoEntity)) }
+    }
+
+  /**
+   * Verifies that `getPhoto` without cached data only emits fresh data after network call.
+   * Expected flow: Loading -> Fresh Success
+   */
+  @Test
+  fun `getPhotoDetail with no cached data and successful network call returns fresh data only`() =
+    runTest {
+      // Given
+      coEvery { dao.getPhotoById(testPhotoId) } returnsMany listOf(null, testPhotoEntity)
+      coEvery { settingsRepository.getApiKey() } returns testApiKeyModel
+      coEvery { api.getPhoto(testApiKey, testPhotoId) } returns testPhotoDto
+      every { mapper.mapDtoToDomain(testPhotoDto) } returns testPhoto
+      every { mapper.mapDomainToEntity(testPhoto) } returns testPhotoEntity
+      every { mapper.mapEntityToDomain(testPhotoEntity) } returns testPhoto
+      coEvery { dao.insertPhotos(listOf(testPhotoEntity)) } returns Unit
+
+      // When & Then
+      repository.getPhotoDetail(testPhotoId).test {
+        val loading = awaitItem()
+        assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
+
+        val freshResult = awaitItem()
+        assertTrue("Second emission should be fresh Success", freshResult is NetworkResult.Success)
+        assertEquals(
+          "Fresh data should match expected photo", testPhoto, (freshResult as
+              NetworkResult.Success).data
+        )
+
+        awaitComplete()
+      }
+    }
+
+  /**
+   * Verifies that `getPhotoDetail` gracefully falls back to cached data when API key is unavailable.
+   */
+  @Test
+  fun `getPhotoDetail with no API key and cached data returns cached data only`() = runTest {
+    // Given
+    coEvery { dao.getPhotoById(testPhotoId) } returns testPhotoEntity
+    coEvery { settingsRepository.getApiKey() } returns null
+    every { mapper.mapEntityToDomain(testPhotoEntity) } returns testPhoto
+
+    // When & Then
+    repository.getPhotoDetail(testPhotoId).test {
+      val loading = awaitItem()
+      assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
+
+      val cachedResult = awaitItem()
+      assertTrue("Second emission should be cached Success", cachedResult is NetworkResult.Success)
+      assertEquals(
+        "Cached data should match expected photo", testPhoto, (cachedResult
+            as NetworkResult.Success).data
+      )
+
+      awaitComplete()
+    }
+
+    // Verify API was not called when no API key is available
+    coVerify(exactly = 0) { api.getPhoto(any(), any()) }
+  }
+
+  /**
+   * Verifies that `getPhotoDetail` returns error when both API key and cached data are unavailable.
+   */
+  @Test
+  fun `getPhotoDetail with no API key and no cached data returns error`() = runTest {
+    // Given
+    coEvery { dao.getPhotoById(testPhotoId) } returns null
+    coEvery { settingsRepository.getApiKey() } returns null
+
+    // When & Then
+    repository.getPhotoDetail(testPhotoId).test {
+      val loading = awaitItem()
+      assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
+
+      val errorResult = awaitItem()
+      assertTrue("Second emission should be Error", errorResult is NetworkResult.Error)
+      assertEquals(
+        "Error message should indicate missing API key and cache",
+        "API key not found and no cached data available.",
+        (errorResult as NetworkResult.Error).message
+      )
 
       awaitComplete()
     }
   }
 
+  /**
+   * Verifies that `getPhotoDetail` falls back to cached data when network call fails.
+   */
   @Test
-  fun `getPhoto emits only cache if network fails`() = runBlocking {
-    // Given the database has a cached version
-    whenever(dao.getPhotoById(photoId)).thenReturn(cachedEntity)
-    // And the network call will fail
-    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
-    whenever(api.getPhoto("valid_key", photoId)).thenThrow(RuntimeException("Network Error"))
+  fun `getPhoto with network error and cached data returns cached data only`() = runTest {
+    // Given
+    coEvery { dao.getPhotoById(testPhotoId) } returns testPhotoEntity
+    coEvery { settingsRepository.getApiKey() } returns testApiKeyModel
+    coEvery { api.getPhoto(testApiKey, testPhotoId) } throws RuntimeException("Network error")
+    every { mapper.mapEntityToDomain(testPhotoEntity) } returns testPhoto
 
-    // When getPhoto is called
-    repository.getPhotoDetail(photoId).test {
-      // Then it emits Loading
-      assertEquals(NetworkResult.Loading, awaitItem())
-      // Then it emits the cached data
-      val cachedResult = awaitItem() as NetworkResult.Success
-      assertEquals("Cached Dani", cachedResult.data.photographer)
-      // And it completes without emitting an error because cache was available
-      awaitComplete()
-    }
-  }
+    // When & Then
+    repository.getPhotoDetail(testPhotoId).test {
+      val loading = awaitItem()
+      assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
 
-  @Test
-  fun `getPhoto emits error if network fails and no cache exists`() = runBlocking {
-    // Given the database is empty
-    whenever(dao.getPhotoById(photoId)).thenReturn(null)
-    // And the network call will fail
-    whenever(settingsRepository.getApiKey()).thenReturn(ApiKey("valid_key", true))
-    whenever(api.getPhoto("valid_key", photoId)).thenThrow(RuntimeException("Network Error"))
-
-    // When getPhoto is called
-    repository.getPhotoDetail(photoId).test {
-      // Then it emits Loading
-      assertEquals(NetworkResult.Loading, awaitItem())
-      // Then it emits an Error
-      val errorResult = awaitItem() as NetworkResult.Error
-      assertTrue(errorResult.message.contains("Network Error"))
+      val cachedResult = awaitItem()
+      assertTrue(
+        "Should fallback to cached Success on network error",
+        cachedResult is NetworkResult.Success
+      )
+      assertEquals(
+        "Cached data should match expected photo", testPhoto, (cachedResult as
+            NetworkResult.Success).data
+      )
 
       awaitComplete()
     }
   }
 
+  /**
+   * Verifies that `getPhotoDetail` returns error when network fails and no cached data is available.
+   */
   @Test
-  fun `getPhoto emits error if no API key and no cache`() = runBlocking {
-    // Given the database is empty and no API key is available
-    whenever(dao.getPhotoById(photoId)).thenReturn(null)
-    whenever(settingsRepository.getApiKey()).thenReturn(null)
+  fun `getPhotoDetail with network error and no cached data returns error`() = runTest {
+    // Given
+    coEvery { dao.getPhotoById(testPhotoId) } returns null
+    coEvery { settingsRepository.getApiKey() } returns testApiKeyModel
+    coEvery { api.getPhoto(testApiKey, testPhotoId) } throws RuntimeException("Network error")
 
-    // When getPhoto is called
-    repository.getPhotoDetail(photoId).test {
-      // Then it emits Loading
-      assertEquals(NetworkResult.Loading, awaitItem())
-      // Then it emits an Error
-      val errorResult = awaitItem() as NetworkResult.Error
-      assertEquals("API key not found and no cached data available.", errorResult.message)
+    repository.getPhotoDetail(testPhotoId).test {
+      val loading = awaitItem()
+      assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
 
-      // And it does not attempt to make a network call
-      verify(api, never()).getPhoto(any(), any())
+      val errorResult = awaitItem()
+      assertTrue(
+        "Should emit Error when network fails and no cache",
+        errorResult is NetworkResult.Error
+      )
+      assertEquals(
+        "Error message should match exception", "Network error", (errorResult as
+            NetworkResult.Error).message
+      )
 
       awaitComplete()
+    }
+  }
+
+  /**
+   * Verifies that `getPhotoDetail` provides default error message for exceptions with null messages.
+   */
+  @Test
+  fun `getPhotoDetail with network error having null message returns default error message`() = runTest {
+    // Given
+    coEvery { dao.getPhotoById(testPhotoId) } returns null
+    coEvery { settingsRepository.getApiKey() } returns testApiKeyModel
+    coEvery { api.getPhoto(testApiKey, testPhotoId) } throws RuntimeException()
+
+    // When & Then
+    repository.getPhotoDetail(testPhotoId).test {
+      val loading = awaitItem()
+      assertTrue("First emission should be Loading", loading is NetworkResult.Loading)
+
+      val errorResult = awaitItem()
+      assertTrue("Should emit Error with default message", errorResult is NetworkResult.Error)
+      assertEquals(
+        "Should provide default error message for null exception messages",
+        "Unknown error occurred",
+        (errorResult as NetworkResult.Error).message
+      )
+
+      awaitComplete()
+
     }
   }
 }

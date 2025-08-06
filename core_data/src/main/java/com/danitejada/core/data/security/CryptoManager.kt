@@ -16,11 +16,9 @@ import javax.inject.Singleton
  * protect sensitive preferences.”
  */
 @Singleton
-class CryptoManager @Inject constructor() {
-
-  private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply {
-    load(null)
-  }
+class CryptoManager(private val keyStore: KeyStore = KeyStore.getInstance("AndroidKeyStore").apply {
+  load(null)
+}) {
 
   /**
    * Retrieves or creates a secret key for the given alias.
