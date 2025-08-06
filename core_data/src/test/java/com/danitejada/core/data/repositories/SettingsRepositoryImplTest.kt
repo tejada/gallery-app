@@ -48,12 +48,6 @@ class SettingsRepositoryImplTest {
   }
 
   @Test
-  fun `hasValidApiKey returns true when key exists`() = runBlocking {
-    whenever(securePreferencesDataSource.getApiKey()).thenReturn(flowOf("some_key"))
-    assertTrue(repository.hasValidApiKey())
-  }
-
-  @Test
   fun `isInitialSeedComplete forwards the call`() = runBlocking {
     whenever(securePreferencesDataSource.isInitialSeedComplete()).thenReturn(flowOf(true))
     val result = repository.isInitialSeedComplete().first()

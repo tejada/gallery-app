@@ -34,12 +34,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.danitejada.feature.settings.R
+import com.danitejada.common.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +52,7 @@ fun ApiKeyScreen(
   navController: NavController
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val canNavigateBack = navController.previousBackStackEntry != null
   var apiKeyInput by remember { mutableStateOf("") }
 
   val scrollState = rememberScrollState()
@@ -58,10 +61,18 @@ fun ApiKeyScreen(
 
   val isInputValid = apiKeyInput.isNotBlank()
   val isReadyToSubmit = uiState is ApiKeyUiState.Idle || uiState is ApiKeyUiState.Error
-  val canNavigateBack = navController.previousBackStackEntry != null
 
-  // React to a successful save
+  // Load the saved API key when the screen starts
+  LaunchedEffect(Unit) {
+    viewModel.loadApiKey()
+  }
+
+  // Pre-fill input field with saved key (once)
   LaunchedEffect(uiState) {
+    if (uiState is ApiKeyUiState.Idle && apiKeyInput.isBlank()) {
+      apiKeyInput = (uiState as ApiKeyUiState.Idle).apiKey
+    }
+
     (uiState as? ApiKeyUiState.Success)?.let {
       if (it.apiKey.isNotBlank()) {
         onApiKeySaved()
@@ -73,11 +84,24 @@ fun ApiKeyScreen(
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text(stringResource(R.string.settings_title)) },
+        title = {
+          Text(
+            text = stringResource(R.string.settings_screen_title),
+            style = MaterialTheme.typography.headlineSmall
+          )
+        },
         navigationIcon = {
           if (canNavigateBack) {
-            IconButton(onClick = onBackClick) {
-              Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            val backDescription = stringResource(R.string.content_description_navigate_back)
+            IconButton(
+              onClick = onBackClick,
+              modifier = Modifier.semantics {
+                contentDescription = backDescription
+              }) {
+              Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = null
+              )
             }
           }
         }
@@ -95,7 +119,7 @@ fun ApiKeyScreen(
       verticalArrangement = Arrangement.Center
     ) {
       Text(
-        text = stringResource(R.string.api_key_screen_blurb),
+        text = stringResource(R.string.settings_api_key_blurb),
         style = MaterialTheme.typography.titleLarge,
         modifier = Modifier.padding(bottom = 32.dp)
       )
@@ -103,7 +127,7 @@ fun ApiKeyScreen(
       OutlinedTextField(
         value = apiKeyInput,
         onValueChange = { apiKeyInput = it },
-        label = { Text(stringResource(R.string.api_key_label)) },
+        label = { Text(stringResource(R.string.settings_api_key_label)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(
           imeAction = ImeAction.Done,
@@ -148,7 +172,7 @@ fun ApiKeyScreen(
             strokeWidth = 2.dp
           )
         } else {
-          Text(stringResource(R.string.save_key_button))
+          Text(stringResource(R.string.settings_button_save_key))
         }
       }
     }

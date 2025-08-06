@@ -6,7 +6,6 @@ import com.danitejada.core.domain.models.ApiKey
 import com.danitejada.core.domain.repositories.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,26 +53,6 @@ class SettingsRepositoryImpl @Inject constructor(
     } catch (e: Exception) {
       // If we can't decrypt or retrieve the key, return null
       null
-    }
-  }
-
-  override fun observeApiKey(): Flow<ApiKey?> {
-    return securePreferencesDataSource.getApiKey().map { apiKey ->
-      apiKey?.let {
-        ApiKey(
-          value = it,
-          isValid = it.isNotBlank()
-        )
-      }
-    }
-  }
-
-  override suspend fun hasValidApiKey(): Boolean {
-    return try {
-      val apiKey = getApiKey()
-      apiKey?.value?.isNotBlank() == true
-    } catch (e: Exception) {
-      false
     }
   }
 

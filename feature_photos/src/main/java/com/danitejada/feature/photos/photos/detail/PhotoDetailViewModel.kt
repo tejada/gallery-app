@@ -14,14 +14,14 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PhotoDetailViewModel @Inject constructor(
-  private val useCase: GetPhotoDetailUseCase
+  private val getPhotoDetailUseCase: GetPhotoDetailUseCase
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow<PhotoDetailUiState>(PhotoDetailUiState.Loading)
   val uiState: StateFlow<PhotoDetailUiState> = _uiState.asStateFlow()
 
   fun loadPhoto(photoId: Int) {
-    useCase(photoId).onEach { result ->
+    getPhotoDetailUseCase(photoId).onEach { result ->
       val newState = when (result) {
         is NetworkResult.Success -> PhotoDetailUiState.Success(result.data)
         is NetworkResult.Error -> PhotoDetailUiState.Error(result.message)

@@ -2,7 +2,7 @@ package com.danitejada.gallery_app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.danitejada.core.domain.usecases.settings.HasApiKeyUseCase
+import com.danitejada.core.domain.usecases.settings.GetApiKeyUseCase
 import com.danitejada.core.domain.usecases.settings.SeedInitialApiKeyUseCase
 import com.danitejada.gallery_app.navigation.ApiKeyDestination
 import com.danitejada.gallery_app.navigation.PhotoListDestination
@@ -15,7 +15,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
   private val seedInitialApiKeyUseCase: SeedInitialApiKeyUseCase,
-  private val hasApiKeyUseCase: HasApiKeyUseCase
+  private val getApiKeyUseCase: GetApiKeyUseCase
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow<MainUiState>(MainUiState.Loading)
@@ -33,6 +33,6 @@ class MainViewModel @Inject constructor(
   }
 
   private suspend fun resolveStartDestination(): Any {
-    return if (hasApiKeyUseCase()) PhotoListDestination else ApiKeyDestination
+    return if (getApiKeyUseCase()?.isValid == true) PhotoListDestination else ApiKeyDestination
   }
 }

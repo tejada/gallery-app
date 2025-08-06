@@ -45,19 +45,20 @@ class PhotosService @Inject constructor(private val httpClient: HttpClient) : Ph
       throw parseError(response)
     }
   }
-    /**
-     * Attempts to parse the body of a failed response into an [ErrorResponse]
-     * to create a more specific exception message.
-     */
-    private suspend fun parseError(response: HttpResponse): Exception {
-      return try {
-        val errorResponse = response.body<ErrorResponse>()
-        // Use the 'error' or 'code' field from the JSON for a better message.
-        val errorMessage = errorResponse.error ?: errorResponse.code ?: "Unknown API Error"
-        Exception("API Error: $errorMessage (Status: ${response.status.value})")
-      } catch (e: Exception) {
-        // This is a fallback in case the error body is not the expected JSON.
-        Exception("API Error: Failed to parse error response. (Status: ${response.status.value})")
-      }
+
+  /**
+   * Attempts to parse the body of a failed response into an [ErrorResponse]
+   * to create a more specific exception message.
+   */
+  private suspend fun parseError(response: HttpResponse): Exception {
+    return try {
+      val errorResponse = response.body<ErrorResponse>()
+      // Use the 'error' or 'code' field from the JSON for a better message.
+      val errorMessage = errorResponse.error ?: errorResponse.code ?: "Unknown API Error"
+      Exception("API Error: $errorMessage (Status: ${response.status.value})")
+    } catch (e: Exception) {
+      // This is a fallback in case the error body is not the expected JSON.
+      Exception("API Error: Failed to parse error response. (Status: ${response.status.value})")
     }
+  }
 } 
