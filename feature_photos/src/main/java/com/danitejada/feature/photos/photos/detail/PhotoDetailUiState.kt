@@ -2,13 +2,27 @@ package com.danitejada.feature.photos.photos.detail
 
 import com.danitejada.core.domain.models.Photo
 
+/**
+ * Represents the UI state for the photo detail screen.
+ */
 sealed interface PhotoDetailUiState {
-  // The screen is loading for the first time
+
+  /**
+   * Indicates the screen is in a loading state while fetching photo details.
+   */
   data object Loading : PhotoDetailUiState
 
-  // The screen has successfully loaded the photo
-  data class Success(val photo: Photo?) : PhotoDetailUiState
-
-  // An error occurred while fetching data
+  /**
+   * Indicates an error occurred while fetching photo details.
+   *
+   * @param message The error message, if available.
+   */
   data class Error(val message: String?) : PhotoDetailUiState
+
+  /**
+   * Indicates the photo details were successfully loaded.
+   *
+   * @param photo The photo data to display.
+   */
+  data class Success(val photo: Photo?) : PhotoDetailUiState
 }

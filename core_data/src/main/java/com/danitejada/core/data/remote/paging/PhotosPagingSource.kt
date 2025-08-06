@@ -8,6 +8,9 @@ import com.danitejada.core.data.remote.api.PhotosApi
 import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.domain.repositories.SettingsRepository
 
+/**
+ * Paging source for loading paginated photo data from the Pexels API.
+ */
 class PhotosPagingSource(
   private val photosApi: PhotosApi,
   private val settingsRepository: SettingsRepository,
@@ -15,6 +18,12 @@ class PhotosPagingSource(
   private val photoDao: PhotoDao
 ) : PagingSource<Int, Photo>() {
 
+  /**
+   * Loads a page of photos from the API.
+   *
+   * @param params The parameters for loading the page, including page size.
+   * @return A [LoadResult] containing the loaded photos, next/previous keys, or an error.
+   */
   override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Photo> {
     val page = params.key ?: 1
     return try {
@@ -41,6 +50,12 @@ class PhotosPagingSource(
     }
   }
 
+  /**
+   * Gets the refresh key for the current paging state.
+   *
+   * @param state The current [PagingState].
+   * @return The key to use for refreshing the data, or null if not applicable.
+   */
   override fun getRefreshKey(state: PagingState<Int, Photo>): Int? {
     return state.anchorPosition?.let { anchorPosition ->
       state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)

@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 
+/**
+ * ViewModel for managing photo detail data and UI state.
+ *
+ * @param getPhotoDetailUseCase Use case for fetching photo details.
+ */
 @HiltViewModel
 class PhotoDetailViewModel @Inject constructor(
   private val getPhotoDetailUseCase: GetPhotoDetailUseCase
@@ -20,6 +25,11 @@ class PhotoDetailViewModel @Inject constructor(
   private val _uiState = MutableStateFlow<PhotoDetailUiState>(PhotoDetailUiState.Loading)
   val uiState: StateFlow<PhotoDetailUiState> = _uiState.asStateFlow()
 
+  /**
+   * Loads the photo details for the given photo ID.
+   *
+   * @param photoId The ID of the photo to load.
+   */
   fun loadPhoto(photoId: Int) {
     getPhotoDetailUseCase(photoId).onEach { result ->
       val newState = when (result) {

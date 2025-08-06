@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Implementation of [PhotosRepository] for fetching photo data from a remote API.
+ */
 @Singleton
 class PhotosRepositoryImpl @Inject constructor(
   private val api: PhotosApi,
@@ -25,6 +28,11 @@ class PhotosRepositoryImpl @Inject constructor(
   private val settingsRepository: SettingsRepository
 ) : PhotosRepository {
 
+  /**
+   * Retrieves a paginated list of photos.
+   *
+   * @return A [Flow] of [PagingData] containing [Photo] objects.
+   */
   override fun getPhotos(): Flow<PagingData<Photo>> {
     return Pager(
       config = PagingConfig(
@@ -37,7 +45,13 @@ class PhotosRepositoryImpl @Inject constructor(
     ).flow
   }
 
-  override fun getPhoto(photoId: Int): Flow<NetworkResult<Photo>> = flow {
+  /**
+   * Fetches from [PhotosApi], caches via [PhotoDao], and uses [SettingsRepository] for API key.
+   *
+   * @param photoId The ID of the photo to retrieve.
+   * @return A [Flow] emitting a [NetworkResult] containing the [Photo] or an error.
+   */
+  override fun getPhotoDetail(photoId: Int): Flow<NetworkResult<Photo>> = flow {
     emit(NetworkResult.Loading)
 
     // Emit cached data first, if available

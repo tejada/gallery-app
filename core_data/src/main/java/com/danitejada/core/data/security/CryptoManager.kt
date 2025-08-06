@@ -10,6 +10,11 @@ import javax.crypto.spec.IvParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Manages encryption and decryption of sensitive data using the Android KeyStore. Used
+ * for securing API keys.internally by [..local.preferences.SecurePreferencesDataSource] to
+ * protect sensitive preferences.”
+ */
 @Singleton
 class CryptoManager @Inject constructor() {
 
@@ -17,11 +22,23 @@ class CryptoManager @Inject constructor() {
     load(null)
   }
 
+  /**
+   * Retrieves or creates a secret key for the given alias.
+   *
+   * @param keyAlias The alias for the key in the Android KeyStore.
+   * @return The [SecretKey] for encryption/decryption.
+   */
   private fun getOrCreateSecretKey(keyAlias: String): SecretKey {
     val existingKey = keyStore.getEntry(keyAlias, null) as? KeyStore.SecretKeyEntry
     return existingKey?.secretKey ?: createKey(keyAlias)
   }
 
+  /**
+   * Creates a new secret key for the given alias.
+   *
+   * @param keyAlias The alias for the key in the Android KeyStore.
+   * @return The newly created [SecretKey].
+   */
   private fun createKey(keyAlias: String): SecretKey {
     return KeyGenerator.getInstance(ALGORITHM).apply {
       init(
@@ -38,6 +55,13 @@ class CryptoManager @Inject constructor() {
     }.generateKey()
   }
 
+  /**
+   * Encrypts the provided data using the Android KeyStore.
+   *
+   * @param data The string to encrypt.
+   * @param keyAlias The alias for the encryption key.
+   * @return An [EncryptedData] object containing the encrypted bytes and initialization vector.
+   */
   fun encrypt(data: String, keyAlias: String): EncryptedData {
     val secretKey = getOrCreateSecretKey(keyAlias)
     val cipher = Cipher.getInstance(TRANSFORMATION).apply {
@@ -50,6 +74,13 @@ class CryptoManager @Inject constructor() {
     return EncryptedData(encryptedBytes, iv)
   }
 
+  /**
+   * Decrypts the provided encrypted data using the Android KeyStore.
+   *
+   * @param encryptedData The [EncryptedData] containing the encrypted bytes and initialization vector.
+   * @param keyAlias The alias for the decryption key.
+   * @return The decrypted string.
+   */
   fun decrypt(encryptedData: EncryptedData, keyAlias: String): String {
     val secretKey = getOrCreateSecretKey(keyAlias)
     val cipher = Cipher.getInstance(TRANSFORMATION).apply {
@@ -68,6 +99,12 @@ class CryptoManager @Inject constructor() {
   }
 }
 
+/**
+ * Represents encrypted data with its initialization vector.
+ *
+ * @param data The encrypted bytes.
+ * @param iv The initialization vector used for encryption.
+ */
 data class EncryptedData(
   val data: ByteArray,
   val iv: ByteArray
@@ -75,12 +112,9 @@ data class EncryptedData(
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
     if (javaClass != other?.javaClass) return false
-
     other as EncryptedData
-
     if (!data.contentEquals(other.data)) return false
     if (!iv.contentEquals(other.iv)) return false
-
     return true
   }
 

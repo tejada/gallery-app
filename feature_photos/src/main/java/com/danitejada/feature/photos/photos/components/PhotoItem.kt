@@ -21,6 +21,13 @@ import com.danitejada.common.R
 import com.danitejada.core.domain.models.Photo
 import com.danitejada.core.ui.image.AsyncImageWithPlaceholder
 
+/**
+ * Composable function that renders a single photo item in the photo grid.
+ *
+ * @param photo The photo to display.
+ * @param onClick Callback invoked when the photo is clicked.
+ * @param modifier The modifier for the composable.
+ */
 @Composable
 fun PhotoItem(
   photo: Photo,

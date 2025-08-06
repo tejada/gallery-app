@@ -19,6 +19,12 @@ import com.danitejada.core.ui.theme.GalleryAppTheme
 import com.danitejada.gallery_app.navigation.AppNavigation
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Entry point of the application.
+ *
+ * Hosts the composable UI and observes [MainUiState] to determine the initial navigation.
+ * Uses Hilt for dependency injection and applies the app's theme.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -29,7 +35,6 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
 
       GalleryAppTheme {
         Surface(
@@ -42,6 +47,11 @@ class MainActivity : ComponentActivity() {
     }
   }
 
+  /**
+   * Renders the UI based on the current [MainUiState].
+   *
+   * @param uiState The state of the main screen (loading or ready).
+   */
   @Composable
   private fun RenderUiState(uiState: MainUiState) {
     when (uiState) {

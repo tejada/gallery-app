@@ -42,7 +42,7 @@ class PhotosRepositoryImplTest {
     whenever(api.getPhoto("valid_key", photoId)).thenReturn(networkDto)
 
     // When getPhoto is called
-    repository.getPhoto(photoId).test {
+    repository.getPhotoDetail(photoId).test {
       // Then it emits Loading first
       assertEquals(NetworkResult.Loading, awaitItem())
 
@@ -70,7 +70,7 @@ class PhotosRepositoryImplTest {
     whenever(api.getPhoto("valid_key", photoId)).thenThrow(RuntimeException("Network Error"))
 
     // When getPhoto is called
-    repository.getPhoto(photoId).test {
+    repository.getPhotoDetail(photoId).test {
       // Then it emits Loading
       assertEquals(NetworkResult.Loading, awaitItem())
       // Then it emits the cached data
@@ -90,7 +90,7 @@ class PhotosRepositoryImplTest {
     whenever(api.getPhoto("valid_key", photoId)).thenThrow(RuntimeException("Network Error"))
 
     // When getPhoto is called
-    repository.getPhoto(photoId).test {
+    repository.getPhotoDetail(photoId).test {
       // Then it emits Loading
       assertEquals(NetworkResult.Loading, awaitItem())
       // Then it emits an Error
@@ -108,7 +108,7 @@ class PhotosRepositoryImplTest {
     whenever(settingsRepository.getApiKey()).thenReturn(null)
 
     // When getPhoto is called
-    repository.getPhoto(photoId).test {
+    repository.getPhotoDetail(photoId).test {
       // Then it emits Loading
       assertEquals(NetworkResult.Loading, awaitItem())
       // Then it emits an Error
