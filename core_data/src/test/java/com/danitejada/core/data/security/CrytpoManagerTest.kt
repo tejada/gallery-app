@@ -1,71 +1,81 @@
 package com.danitejada.core.data.security
 
-import org.junit.Test
-import org.junit.Assert.*
+import io.mockk.every
+import io.mockk.mockk
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
-import org.robolectric.RobolectricTestRunner
-import org.junit.runner.RunWith
-import android.os.Build
-import org.robolectric.annotation.Config
+import org.junit.Test
+import java.security.KeyStore
+import java.security.Security
+import javax.crypto.spec.SecretKeySpec
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [Build.VERSION_CODES.P]) // Use API 28 for Keystore support in tests
+/**
+ * Unit tests for [CryptoManager].
+ *
+ * Tests verify correct encryption and decryption behavior using a mocked [KeyStore].
+ * BouncyCastle provider is registered to support AES/CBC/PKCS7Padding transformation.
+ */
 class CryptoManagerTest {
 
   private lateinit var cryptoManager: CryptoManager
   private val testKeyAlias = "test_key_alias"
-  private val testData = "563492ad6f91700001000001abc123def456" // Mock API key
+  private val mockKeyStore = mockk<KeyStore>(relaxed = true)
 
+  /**
+   * Sets up the test environment by registering the BouncyCastle provider
+   * and mocking the [KeyStore] to return a dummy AES secret key for testing.
+   */
   @Before
   fun setup() {
-    cryptoManager = CryptoManager()
+    Security.addProvider(BouncyCastleProvider())
+    cryptoManager = CryptoManager(mockKeyStore)
+
+    val dummySecretKey = SecretKeySpec(ByteArray(16) { 0x01 }, "AES")
+
+    every {
+      mockKeyStore.getEntry(testKeyAlias, null)
+    } returns KeyStore.SecretKeyEntry(dummySecretKey)
   }
 
+  /**
+   * Verifies that encrypting and then decrypting a string returns the original string.
+   */
   @Test
-  fun `encrypt and decrypt returns original data`() {
-    // Given
-    val originalData = testData
-
-    // When
-    val encryptedData = cryptoManager.encrypt(originalData, testKeyAlias)
-    val decryptedData = cryptoManager.decrypt(encryptedData, testKeyAlias)
-
-    // Then
-    assertEquals(originalData, decryptedData)
-    assertNotEquals(originalData, String(encryptedData.data)) // Ensure it's actually encrypted
-    assertTrue("IV should not be empty", encryptedData.iv.isNotEmpty())
+  fun `encrypt and decrypt returns original text`() {
+    val originalText = "test-api-key"
+    val encrypted = cryptoManager.encrypt(originalText, testKeyAlias)
+    val decrypted = cryptoManager.decrypt(encrypted, testKeyAlias)
+    assertEquals(originalText, decrypted)
   }
 
+  /**
+   * Ensures that encrypting the same input multiple times produces different ciphertexts,
+   * due to unique initialization vectors, and that both decrypt correctly.
+   */
   @Test
   fun `encrypt produces different ciphertext for same data`() {
-    // Given
-    val originalData = testData
+    val originalText = "test-api-key"
 
-    // When
-    val encryptedData1 = cryptoManager.encrypt(originalData, testKeyAlias)
-    val encryptedData2 = cryptoManager.encrypt(originalData, testKeyAlias)
+    val encrypted1 = cryptoManager.encrypt(originalText, testKeyAlias)
+    val encrypted2 = cryptoManager.encrypt(originalText, testKeyAlias)
 
-    // Then
-    assertFalse("Encrypted data should be different due to random IV",
-      encryptedData1.data.contentEquals(encryptedData2.data))
-    assertFalse("IVs should be different",
-      encryptedData1.iv.contentEquals(encryptedData2.iv))
-
-    // But both should decrypt to the same original data
-    assertEquals(originalData, cryptoManager.decrypt(encryptedData1, testKeyAlias))
-    assertEquals(originalData, cryptoManager.decrypt(encryptedData2, testKeyAlias))
+    assertFalse(encrypted1.data.contentEquals(encrypted2.data))
+    assertFalse(encrypted1.iv.contentEquals(encrypted2.iv))
+    assertEquals(originalText, cryptoManager.decrypt(encrypted1, testKeyAlias))
+    assertEquals(originalText, cryptoManager.decrypt(encrypted2, testKeyAlias))
   }
 
+  /**
+   * Checks that an empty string can be encrypted and decrypted without error,
+   * confirming handling of empty input.
+   */
   @Test
   fun `empty string can be encrypted and decrypted`() {
-    // Given
     val emptyData = ""
-
-    // When
-    val encryptedData = cryptoManager.encrypt(emptyData, testKeyAlias)
-    val decryptedData = cryptoManager.decrypt(encryptedData, testKeyAlias)
-
-    // Then
-    assertEquals(emptyData, decryptedData)
+    val encrypted = cryptoManager.encrypt(emptyData, testKeyAlias)
+    val decrypted = cryptoManager.decrypt(encrypted, testKeyAlias)
+    assertEquals(emptyData, decrypted)
   }
 }

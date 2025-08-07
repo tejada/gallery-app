@@ -7,11 +7,24 @@ import com.danitejada.core.data.remote.dto.PhotoSourceDto
 import com.danitejada.core.domain.models.Photo
 import org.junit.Assert
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+/**
+ * Unit tests for [PhotoMapper].
+ *
+ * Verifies that mapping between DTOs, Entities, and Domain models works correctly,
+ * including color parsing and URL fields.
+ */
+@RunWith(RobolectricTestRunner::class)
 class PhotoMapperTest {
 
   private val mapper = PhotoMapper()
 
+  /**
+   * Tests that mapping from [PhotoDto] to domain model [Photo]
+   * correctly transforms fields including color and nested source URLs.
+   */
   @Test
   fun `mapDtoToDomain maps correctly`() {
     val dto = PhotoDto(
@@ -36,6 +49,10 @@ class PhotoMapperTest {
     Assert.assertEquals("alt", domain.alt)
   }
 
+  /**
+   * Tests that mapping from local database [PhotoEntity] to domain model [Photo]
+   * preserves all relevant fields including color and thumbnail URLs.
+   */
   @Test
   fun `mapEntityToDomain maps correctly`() {
     val entity = PhotoEntity(
@@ -60,6 +77,10 @@ class PhotoMapperTest {
     Assert.assertEquals("thumb", domain.thumbnailUrl)
   }
 
+  /**
+   * Tests that mapping from domain model [Photo] to local database [PhotoEntity]
+   * correctly transforms fields and preserves important properties.
+   */
   @Test
   fun `mapDomainToEntity maps correctly`() {
     val domain = Photo(
