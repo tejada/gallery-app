@@ -48,7 +48,6 @@ class ApiKeyViewModel @Inject constructor(
    * @param apiKey The API key to save.
    */
   fun saveApiKey(apiKey: String) {
-    _uiState.value = ApiKeyUiState.Idle(apiKey)
     when {
       apiKey.isBlank() -> {
         _uiState.value = ApiKeyUiState.Error(R.string.error_api_key_empty)

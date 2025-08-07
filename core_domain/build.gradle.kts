@@ -64,6 +64,7 @@ dependencies {
   implementation(libs.androidx.hilt.navigation.compose)
 
   // Test
+  testImplementation(libs.mockk.android)
   testImplementation(libs.junit)
   testImplementation(libs.mockito.kotlin)
   testImplementation(libs.coroutines.test)
