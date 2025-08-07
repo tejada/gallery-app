@@ -6,6 +6,7 @@ A modern Android gallery application built to showcase a robust and scalable arc
 
 *   **Dynamic Start Screen**: The app intelligently checks if an API key is present. If not, it prompts the user to enter one; otherwise, it proceeds directly to the photo gallery.
 *   **Paginated Photo List**: Displays an infinite-scrolling grid of photos fetched from the Pexels API, using Jetpack Paging 3.
+*   **Pull-to-Refresh**: Users can easily refresh the photo gallery by swiping down, providing an intuitive way to fetch the latest images.
 *   **Photo Details**: Users can tap on a photo to view it in higher resolution, along with details like the photographer's name and image dimensions.
 *   **Secure API Key Storage**: The user-provided API key is securely encrypted and stored locally using AndroidX Security (Crypto) and Jetpack DataStore.
 *   **Offline Caching**: Fetched photos are cached in a local Room database, providing a basic offline experience and faster subsequent loads.
